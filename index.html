@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Exilium Switch</title>
+    <link rel="icon" type="image/png" href="/ExiliumIcon.png" />
+    <!-- Windows 11 Fluent Meta -->
+    <meta name="color-scheme" content="dark">
+    <style>
+      /* Prevent white flash on launch */
+      html, body {
+        background-color: #0b0f19;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+    </style>
+  </head>
+  <body class="bg-fluent-dark text-fluent-textPrimary antialiased selection:bg-fluent-accent selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

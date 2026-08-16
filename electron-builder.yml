@@ -1,0 +1,39 @@
+appId: com.nostro.exiliumswitch
+productName: Exilium Switch
+copyright: Copyright © 2026 Nostro
+directories:
+  output: release
+files:
+  - dist
+  - dist-electron
+  - build/icon.ico
+  - build/icon.png
+extraResources:
+  - from: "sing-box"
+    to: "sing-box"
+    filter:
+      - "sing-box.exe"
+      - "libcronet.dll"
+      - "!config.json"
+      - "!*.json"
+      - "!*.bat"
+      - "!*.ps1"
+win:
+  icon: "build/icon.ico"
+  target:
+    - target: portable
+      arch:
+        - x64
+    - target: dir
+      arch:
+        - x64
+  requestedExecutionLevel: requireAdministrator
+  sign: null
+  signAndEditExecutable: false
+  forceCodeSigning: false
+portable:
+  artifactName: "ExiliumSwitch.exe"
+  requestExecutionLevel: "admin"
+nsis:
+  oneClick: true
+  perMachine: true

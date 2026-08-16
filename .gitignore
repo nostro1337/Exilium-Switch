@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build Outputs
+dist/
+dist-electron/
+release/
+build/win-unpacked/
+out/
+
+# User Private VPN Configurations & Credentials
+config.json
+nono_config.json
+sing-box/config.json
+profiles/
+
+# Logs and Session Diagnostics
+*.log
+logs/
+*.txt
+!README.md
+
+# OS & Editor Files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
