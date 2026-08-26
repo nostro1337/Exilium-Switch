@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Settings, Save, X, RotateCcw, ShieldCheck, Laptop } from 'lucide-react'
+import { Settings, Save, X, RotateCcw, ShieldCheck, Laptop, Sparkles } from 'lucide-react'
 import type { AppSettings } from '../../electron/preload'
 
 interface SettingsModalProps {
   isOpen: boolean
   onClose: () => void
+  onCheckUpdates?: () => void
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onCheckUpdates }) => {
   const [settings, setSettings] = useState<AppSettings>({
     realZone: 'Tomsk Standard Time',
     fakeZone: 'W. Europe Standard Time',
@@ -154,6 +155,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 className="w-4 h-4 rounded accent-white cursor-pointer"
               />
             </label>
+          </div>
+
+          {/* App Update Checker */}
+          <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-[11px] font-medium text-zinc-300">Версия Exilium Switch</span>
+              <span className="text-[10px] text-zinc-500 font-mono">v1.3.1</span>
+            </div>
+            {onCheckUpdates && (
+              <button
+                type="button"
+                onClick={onCheckUpdates}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 text-[11px] font-medium transition-colors cursor-pointer"
+              >
+                <Sparkles size={12} />
+                <span>Проверить обновления</span>
+              </button>
+            )}
           </div>
         </div>
 

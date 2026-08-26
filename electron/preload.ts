@@ -50,6 +50,30 @@ export interface IpcApi {
   // Log Export & File Operations
   exportLogs: () => Promise<{ success: boolean; savedPath?: string; error?: string }>
   openLogsFolder: () => Promise<void>
+
+  // Auto Updater
+  checkForUpdates: () => Promise<{ success: boolean; updateAvailable?: boolean; version?: string; error?: string }>
+  startUpdateDownload: () => Promise<{ success: boolean; error?: string }>
+  quitAndInstallUpdate: () => Promise<void>
+  onUpdateChecking: (callback: () => void) => () => void
+  onUpdateAvailable: (callback: (info: UpdateInfo) => void) => () => void
+  onUpdateNotAvailable: (callback: () => void) => () => void
+  onUpdateProgress: (callback: (progress: UpdateProgress) => void) => () => void
+  onUpdateDownloaded: (callback: (info: UpdateInfo) => void) => () => void
+  onUpdateError: (callback: (err: { message: string }) => void) => () => void
+}
+
+export interface UpdateInfo {
+  version: string
+  releaseNotes?: string | Array<{ version: string; note: string }>
+  releaseDate?: string
+}
+
+export interface UpdateProgress {
+  percent: number
+  bytesPerSecond: number
+  transferred: number
+  total: number
 }
 
 const api: IpcApi = {
@@ -80,7 +104,42 @@ const api: IpcApi = {
   
   // Export Logs
   exportLogs: () => ipcRenderer.invoke('export-logs'),
-  openLogsFolder: () => ipcRenderer.invoke('open-logs-folder')
+  openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
+
+  // Auto Updater
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+  startUpdateDownload: () => ipcRenderer.invoke('updater:start-download'),
+  quitAndInstallUpdate: () => ipcRenderer.invoke('updater:quit-and-install'),
+  onUpdateChecking: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('updater:checking', handler)
+    return () => ipcRenderer.removeListener('updater:checking', handler)
+  },
+  onUpdateAvailable: (callback) => {
+    const handler = (_event: any, info: UpdateInfo) => callback(info)
+    ipcRenderer.on('updater:available', handler)
+    return () => ipcRenderer.removeListener('updater:available', handler)
+  },
+  onUpdateNotAvailable: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('updater:not-available', handler)
+    return () => ipcRenderer.removeListener('updater:not-available', handler)
+  },
+  onUpdateProgress: (callback) => {
+    const handler = (_event: any, progress: UpdateProgress) => callback(progress)
+    ipcRenderer.on('updater:progress', handler)
+    return () => ipcRenderer.removeListener('updater:progress', handler)
+  },
+  onUpdateDownloaded: (callback) => {
+    const handler = (_event: any, info: UpdateInfo) => callback(info)
+    ipcRenderer.on('updater:downloaded', handler)
+    return () => ipcRenderer.removeListener('updater:downloaded', handler)
+  },
+  onUpdateError: (callback) => {
+    const handler = (_event: any, err: any) => callback(err)
+    ipcRenderer.on('updater:error', handler)
+    return () => ipcRenderer.removeListener('updater:error', handler)
+  }
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

@@ -7,7 +7,7 @@
 **Personal Use VPN Controller & Windows Resident Shield**  
 *Built with Electron, React, TypeScript, Tailwind CSS, and sing-box Core*
 
-[![Release](https://img.shields.io/badge/Release-v1.1-6366f1.svg?style=flat-square)]()
+[![Release](https://img.shields.io/badge/Release-v1.3-6366f1.svg?style=flat-square)]()
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078d7.svg?style=flat-square)]()
 [![Core](https://img.shields.io/badge/Engine-sing--box%20v1.11+-10b981.svg?style=flat-square)]()
 [![License](https://img.shields.io/badge/License-MIT-gray.svg?style=flat-square)]()
@@ -58,7 +58,7 @@ npm run build
 npx electron-builder --win portable
 ```
 
-The output executable will be created in `release/ExiliumSwitch.exe`.
+The output executable will be created in `release/Exilium Switch.exe`.
 
 ---
 

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, shell, Notification } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import path from 'node:path'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -11,7 +12,13 @@ const __dirname = path.dirname(__filename)
 
 const execFileAsync = promisify(execFile)
 
-const APP_AUMID = 'com.nostro.exiliumswitch'
+// Single Instance Lock (Prevents duplicate background processes)
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  app.quit()
+}
+
+const APP_AUMID = 'Exilium Switch'
 app.setName('Exilium Switch')
 try {
   app.setAppUserModelId(APP_AUMID)
@@ -66,6 +73,7 @@ let tray: Tray | null = null
 let appStartTime: number | null = null
 let singBoxProcess: ChildProcess | null = null
 let isToggling = false
+let isQuitting = false
 
 // RAM Ring Buffer (for fast UI rendering)
 const logsBuffer: Array<{ time: string; text: string; type: 'info' | 'warn' | 'error' | 'success' }> = []
@@ -83,7 +91,7 @@ function initSessionLogger() {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     sessionLogFilePath = path.join(logsDir, `exilium-session-${timestamp}.log`)
     sessionLogStream = fs.createWriteStream(sessionLogFilePath, { flags: 'a', encoding: 'utf-8' })
-    sessionLogStream.write(`=== EXILIUM SWITCH v1.1 SESSION STARTED [${new Date().toISOString()}] (by Nostro) ===\n`)
+    sessionLogStream.write(`=== EXILIUM SWITCH v1.3 SESSION STARTED [${new Date().toISOString()}] (by Nostro) ===\n`)
   } catch (err) {
     console.error('Failed to init session logger:', err)
   }
@@ -119,47 +127,119 @@ function addLog(text: string, type: 'info' | 'warn' | 'error' | 'success' = 'inf
 }
 
 // ============================================================
+// Real Executable Path Resolution (Handles Portable .exe)
+// ============================================================
+function getRealExePath(): string {
+  if (process.env.PORTABLE_EXECUTABLE_FILE && fs.existsSync(process.env.PORTABLE_EXECUTABLE_FILE)) {
+    return process.env.PORTABLE_EXECUTABLE_FILE
+  }
+  return process.execPath
+}
+
+// ============================================================
+// Cached Icon Assets (Ensures Physical Path for Windows API / Toast)
+// ============================================================
+function ensureCachedIcons(): { pngPath: string; icoPath: string } {
+  const userData = app.getPath('userData')
+  const pngPath = path.join(userData, 'app-icon.png')
+  const icoPath = path.join(userData, 'app-icon.ico')
+
+  try {
+    if (!fs.existsSync(userData)) {
+      fs.mkdirSync(userData, { recursive: true })
+    }
+
+    const icoCandidates = [
+      path.join(app.getAppPath(), 'build', 'icon.ico'),
+      path.join(process.resourcesPath, 'build', 'icon.ico'),
+      path.join(__dirname, '..', 'build', 'icon.ico'),
+      path.resolve('build', 'icon.ico'),
+      path.resolve('ExiliumSwitchIcon.ico')
+    ]
+    for (const cand of icoCandidates) {
+      if (fs.existsSync(cand)) {
+        try {
+          fs.copyFileSync(cand, icoPath)
+        } catch {}
+        break
+      }
+    }
+
+    const pngCandidates = [
+      path.join(app.getAppPath(), 'build', 'icon.png'),
+      path.join(app.getAppPath(), 'src', 'assets', 'ExiliumAppIcon.png'),
+      path.join(process.resourcesPath, 'build', 'icon.png'),
+      path.join(__dirname, '..', 'build', 'icon.png'),
+      path.join(__dirname, '..', 'src', 'assets', 'ExiliumAppIcon.png'),
+      path.resolve('build', 'icon.png')
+    ]
+    for (const cand of pngCandidates) {
+      if (fs.existsSync(cand)) {
+        try {
+          fs.copyFileSync(cand, pngPath)
+        } catch {}
+        break
+      }
+    }
+  } catch (e) {
+    console.error('Error caching icons:', e)
+  }
+
+  return { pngPath, icoPath }
+}
+
+// ============================================================
+// Windows Integration: Start Menu Shortcut & Taskbar Pinning
+// ============================================================
+function registerWindowsIntegration() {
+  try {
+    const exePath = getRealExePath()
+    const { icoPath } = ensureCachedIcons()
+    const shortcutDir = path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs')
+    if (!fs.existsSync(shortcutDir)) {
+      fs.mkdirSync(shortcutDir, { recursive: true })
+    }
+    const shortcutPath = path.join(shortcutDir, 'Exilium Switch.lnk')
+    const iconTarget = fs.existsSync(icoPath) ? icoPath : exePath
+
+    const exists = fs.existsSync(shortcutPath)
+    shell.writeShortcutLink(shortcutPath, exists ? 'update' : 'create', {
+      target: exePath,
+      cwd: path.dirname(exePath),
+      description: 'Exilium Switch — Resident Shield (by Nostro)',
+      icon: iconTarget,
+      iconIndex: 0,
+      appUserModelId: APP_AUMID
+    })
+  } catch (err) {
+    console.error('registerWindowsIntegration error:', err)
+  }
+}
+
+// ============================================================
 // Windows Native Toast Notifications (Windows 10 & 11)
 // ============================================================
-function getAppIconPath(): string | undefined {
-  const candidates = [
-    path.join(process.resourcesPath, 'build', 'icon.png'),
-    path.join(process.resourcesPath, 'build', 'icon.ico'),
-    path.join(app.getAppPath(), 'build', 'icon.png'),
-    path.join(app.getAppPath(), 'src', 'assets', 'ExiliumAppIcon.png'),
-    path.resolve('build', 'icon.png'),
-    path.resolve('ExiliumAppIcon.ico')
-  ]
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c
-  }
-  return undefined
-}
-
-// Ensure Windows 10 Action Center registration
-function registerWindows10Notifications() {
-  try {
-    const exe = process.execPath
-    const shortcutPath = path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Exilium Switch.lnk')
-    if (!fs.existsSync(shortcutPath)) {
-      execFile('powershell.exe', [
-        '-NoProfile', '-Command',
-        `$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('${shortcutPath}'); $s.TargetPath = '${exe}'; $s.Save()`
-      ], () => {})
-    }
-  } catch {}
-}
-
 function showNotification(title: string, body: string, isUrgent = false) {
   try {
-    const iconPath = getAppIconPath()
+    const { pngPath, icoPath } = ensureCachedIcons()
+    const iconFile = fs.existsSync(pngPath) ? pngPath : fs.existsSync(icoPath) ? icoPath : undefined
+
     if (Notification.isSupported()) {
       const notif = new Notification({
         title,
         body,
-        icon: iconPath ? iconPath : getAppIcon(),
+        icon: iconFile,
         urgency: isUrgent ? 'critical' : 'normal',
         silent: false
+      })
+      notif.on('click', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          if (mainWindow.isMinimized()) mainWindow.restore()
+          if (!mainWindow.isVisible()) mainWindow.show()
+          mainWindow.focus()
+        } else {
+          createWindow()
+        }
       })
       notif.show()
     }
@@ -186,24 +266,26 @@ async function checkIsAdmin(): Promise<boolean> {
 }
 
 // ============================================================
-// Icon Resolution (ExiliumAppIcon.ico / .png)
+// Icon Resolution (ExiliumSwitchIcon / NativeImage)
 // ============================================================
 function getAppIcon() {
+  const { icoPath, pngPath } = ensureCachedIcons()
   const candidates = [
+    icoPath,
+    pngPath,
     path.join(process.resourcesPath, 'build', 'icon.ico'),
     path.join(process.resourcesPath, 'build', 'icon.png'),
     path.join(app.getAppPath(), 'src', 'assets', 'ExiliumAppIcon.png'),
     path.join(app.getAppPath(), 'build', 'icon.ico'),
     path.join(app.getAppPath(), 'build', 'icon.png'),
-    path.join(app.getAppPath(), 'ExiliumAppIcon.ico'),
     path.join(__dirname, '..', 'src', 'assets', 'ExiliumAppIcon.png'),
     path.join(__dirname, '..', 'build', 'icon.ico'),
     path.resolve('build', 'icon.ico'),
-    path.resolve('ExiliumAppIcon.ico')
+    path.resolve('ExiliumSwitchIcon.ico')
   ]
 
   for (const cand of candidates) {
-    if (fs.existsSync(cand)) {
+    if (cand && fs.existsSync(cand)) {
       try {
         const img = nativeImage.createFromPath(cand)
         if (!img.isEmpty()) return img
@@ -222,10 +304,37 @@ function getAppIcon() {
 }
 
 // ============================================================
-// Settings Management
+// Settings Management & Autostart Synchronization
 // ============================================================
 function getSettingsPath(): string {
   return path.join(app.getPath('userData'), 'exilium_settings.json')
+}
+
+function applyAutoStartSetting(autoStart: boolean, startMinimized: boolean) {
+  try {
+    const exePath = getRealExePath()
+    const args = startMinimized ? ['--hidden'] : []
+
+    // 1. Electron API
+    app.setLoginItemSettings({
+      openAtLogin: autoStart,
+      path: exePath,
+      args: args
+    })
+
+    // 2. Direct registry synchronization for 100% guarantee on all Windows versions
+    const regKey = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run'
+    if (autoStart) {
+      const commandStr = args.length > 0 ? `"${exePath}" ${args.join(' ')}` : `"${exePath}"`
+      execFile('reg.exe', ['add', regKey, '/v', 'Exilium Switch', '/t', 'REG_SZ', '/d', commandStr, '/f'], () => {})
+    } else {
+      execFile('reg.exe', ['delete', regKey, '/v', 'Exilium Switch', '/f'], () => {})
+      execFile('reg.exe', ['delete', regKey, '/v', 'exilium-switch', '/f'], () => {})
+      execFile('reg.exe', ['delete', regKey, '/v', 'com.nostro.exiliumswitch', '/f'], () => {})
+    }
+  } catch (err) {
+    console.error('applyAutoStartSetting error:', err)
+  }
 }
 
 function loadSettings(): AppSettings {
@@ -249,16 +358,14 @@ function saveSettings(settings: Partial<AppSettings>): AppSettings {
     const current = loadSettings()
     const updated = { ...current, ...settings }
     fs.writeFileSync(getSettingsPath(), JSON.stringify(updated, null, 2), 'utf-8')
-    app.setLoginItemSettings({
-      openAtLogin: updated.autoStart,
-      openAsHidden: updated.startMinimized
-    })
+    applyAutoStartSetting(updated.autoStart, updated.startMinimized)
     return updated
   } catch (err) {
     addLog(`Ошибка сохранения настроек: ${err}`, 'error')
     return loadSettings()
   }
 }
+
 
 // ============================================================
 // Profile Management (100% User Managed, Zero Bundled Configs)
@@ -921,7 +1028,7 @@ function createTray() {
     const showWindow = () => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         if (mainWindow.isMinimized()) mainWindow.restore()
-        mainWindow.show()
+        if (!mainWindow.isVisible()) mainWindow.show()
         mainWindow.focus()
       } else {
         createWindow()
@@ -943,7 +1050,7 @@ function updateTrayMenu(isRunning: boolean) {
   const profileLabel = activeProfile ? `Профиль: ${activeProfile.name}` : 'Профиль: (не выбран)'
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Exilium Switch v1.1 (by Nostro)', enabled: false },
+    { label: 'Exilium Switch v1.3 (by Nostro)', enabled: false },
     { type: 'separator' },
     {
       label: isRunning ? '● Resident Mode: ВКЛЮЧЕН' : '○ Resident Mode: ВЫКЛЮЧЕН',
@@ -967,27 +1074,44 @@ function updateTrayMenu(isRunning: boolean) {
       click: () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           if (mainWindow.isMinimized()) mainWindow.restore()
-          mainWindow.show()
+          if (!mainWindow.isVisible()) mainWindow.show()
           mainWindow.focus()
         } else {
           createWindow()
         }
       }
     },
-    { label: 'Выход', click: () => app.exit(0) }
+    {
+      label: 'Выход',
+      click: () => {
+        isQuitting = true
+        app.quit()
+      }
+    }
   ])
 
   tray.setContextMenu(contextMenu)
-  tray.setToolTip(`Exilium Switch v1.1: ${isRunning ? '● Защищен' : '○ Ожидание'} [${activeProfile?.name || 'Нет профиля'}]`)
+  tray.setToolTip(`Exilium Switch v1.3: ${isRunning ? '● Защищен' : '○ Ожидание'} [${activeProfile?.name || 'Нет профиля'}]`)
+}
+
+function shouldStartHiddenOnLaunch(): boolean {
+  if (process.argv.includes('--hidden') || process.argv.includes('--minimized')) {
+    return true
+  }
+  const settings = loadSettings()
+  return Boolean(settings.startMinimized)
 }
 
 function createWindow() {
   try {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show()
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      if (!mainWindow.isVisible()) mainWindow.show()
       mainWindow.focus()
       return
     }
+
+    const startHidden = shouldStartHiddenOnLaunch()
 
     let preloadPath = path.join(__dirname, 'preload.cjs')
     if (!fs.existsSync(preloadPath)) {
@@ -1005,7 +1129,7 @@ function createWindow() {
       minWidth: 420,
       minHeight: 680,
       frame: false,
-      show: true,
+      show: !startHidden,
       center: true,
       icon: appIcon,
       backgroundColor: '#09090b',
@@ -1035,15 +1159,17 @@ function createWindow() {
 
     mainWindow.webContents.on('did-finish-load', () => {
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.show()
-        mainWindow.focus()
+        if (!startHidden) {
+          mainWindow.show()
+          mainWindow.focus()
+        }
       }
-      addLog('Интерфейс Exilium Switch v1.1 успешно загружен.', 'info')
+      addLog('Интерфейс Exilium Switch v1.3 успешно загружен.', 'info')
     })
 
     mainWindow.on('close', (event) => {
       const settings = loadSettings()
-      if (settings.minimizeToTray) {
+      if (settings.minimizeToTray && !isQuitting) {
         event.preventDefault()
         mainWindow?.hide()
       }
@@ -1053,13 +1179,28 @@ function createWindow() {
   }
 }
 
+// Second Instance Lock Handler
+app.on('second-instance', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    if (!mainWindow.isVisible()) mainWindow.show()
+    mainWindow.focus()
+  } else {
+    createWindow()
+  }
+})
+
 // ============================================================
 // Lifecycle & IPC Handlers
 // ============================================================
 app.whenReady().then(async () => {
+  ensureCachedIcons()
   initSessionLogger()
   purgeLegacyDefaultProfile()
-  registerWindows10Notifications()
+  registerWindowsIntegration()
+
+  const currentSettings = loadSettings()
+  applyAutoStartSetting(currentSettings.autoStart, currentSettings.startMinimized)
 
   createTray()
   createWindow()
@@ -1253,16 +1394,131 @@ app.whenReady().then(async () => {
   ipcMain.on('window-close', () => {
     const settings = loadSettings()
     if (settings.minimizeToTray) mainWindow?.hide()
-    else app.exit(0)
+    else {
+      isQuitting = true
+      app.quit()
+    }
   })
 
   // Periodic Status Broadcast
   setInterval(async () => {
     await updateStatusBroadcast()
   }, 3500)
+
+  // ============================================================
+  // Auto Updater Handlers
+  // ============================================================
+  initAutoUpdater()
+  if (app.isPackaged) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch((err) => {
+        addLog(`[Updater] Фоновая проверка обновлений: ${err.message}`, 'warn')
+      })
+    }, 6000)
+  }
+
+  ipcMain.handle('updater:check', async () => {
+    try {
+      if (app.isPackaged) {
+        addLog('[Updater] Ручной запуск проверки обновлений...', 'info')
+        const result = await autoUpdater.checkForUpdates()
+        return { success: true, updateAvailable: !!result?.updateInfo, version: result?.updateInfo?.version }
+      } else {
+        addLog('[Updater] Проверка обновлений отключена в режиме разработки (Dev mode).', 'info')
+        return { success: true, updateAvailable: false, error: 'Dev mode' }
+      }
+    } catch (err: any) {
+      addLog(`[Updater] Ошибка при проверке обновлений: ${err.message}`, 'warn')
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('updater:start-download', async () => {
+    try {
+      addLog('[Updater] Начат процесс загрузки обновления...', 'info')
+      await autoUpdater.downloadUpdate()
+      return { success: true }
+    } catch (err: any) {
+      addLog(`[Updater] Ошибка скачивания обновления: ${err.message}`, 'error')
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('updater:quit-and-install', async () => {
+    try {
+      addLog('[Updater] Запрос на установку обновления. Подготовка к безопасному перезапуску...', 'info')
+      const isRunning = await checkIsProcessRunning()
+      if (isRunning) {
+        addLog('[Updater] Корректное отключение Resident Shield перед установкой...', 'info')
+        await disableResidentMode()
+      }
+      isQuitting = true
+      // isSilent: false (shows NSIS finish), isForceRunAfter: true (relaunches updated app)
+      autoUpdater.quitAndInstall(false, true)
+    } catch (err: any) {
+      addLog(`[Updater] Ошибка перезапуска и установки: ${err.message}`, 'error')
+    }
+  })
+})
+
+// ============================================================
+// Auto Updater Core Setup
+// ============================================================
+function initAutoUpdater() {
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = false
+
+  autoUpdater.on('checking-for-update', () => {
+    addLog('[Updater] Проверка наличия обновлений на GitHub Releases...', 'info')
+    mainWindow?.webContents.send('updater:checking')
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    addLog(`[Updater] Найдена новая версия: v${info.version}`, 'success')
+    mainWindow?.webContents.send('updater:available', {
+      version: info.version,
+      releaseNotes: info.releaseNotes,
+      releaseDate: info.releaseDate
+    })
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    addLog('[Updater] Установлена актуальная версия Exilium Switch.', 'info')
+    mainWindow?.webContents.send('updater:not-available')
+  })
+
+  autoUpdater.on('error', (err) => {
+    addLog(`[Updater] Ошибка модуля обновлений: ${err.message}`, 'warn')
+    mainWindow?.webContents.send('updater:error', { message: err.message })
+  })
+
+  autoUpdater.on('download-progress', (progressObj) => {
+    mainWindow?.webContents.send('updater:progress', {
+      percent: Math.round(progressObj.percent),
+      bytesPerSecond: progressObj.bytesPerSecond,
+      transferred: progressObj.transferred,
+      total: progressObj.total
+    })
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    addLog(`[Updater] Обновление v${info.version} успешно скачано и готово к установке.`, 'success')
+    mainWindow?.webContents.send('updater:downloaded', {
+      version: info.version,
+      releaseNotes: info.releaseNotes,
+      releaseDate: info.releaseDate
+    })
+  })
+}
+
+app.on('before-quit', () => {
+  isQuitting = true
 })
 
 app.on('window-all-closed', () => {
   const settings = loadSettings()
-  if (!settings.minimizeToTray) app.exit(0)
+  if (!settings.minimizeToTray || isQuitting) {
+    app.quit()
+  }
 })
+

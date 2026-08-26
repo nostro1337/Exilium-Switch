@@ -13,6 +13,8 @@ out/
 # User Private VPN Configurations & Credentials
 config.json
 nono_config.json
+config_*.json
+Configs/
 sing-box/config.json
 profiles/
 

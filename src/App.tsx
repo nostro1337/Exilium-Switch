@@ -5,6 +5,7 @@ import { ResidentStatusCard } from './components/ResidentStatusCard'
 import { LogConsole } from './components/LogConsole'
 import { SettingsModal } from './components/SettingsModal'
 import { ProfileSelector } from './components/ProfileSelector'
+import { UpdateModal } from './components/UpdateModal'
 import type { VpnStatus, AppSettings } from '../electron/preload'
 
 export function App() {
@@ -28,6 +29,15 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [logsOpen, setLogsOpen] = useState(false)
   const [profilesOpen, setProfilesOpen] = useState(false)
+  const [updateModalOpen, setUpdateModalOpen] = useState(false)
+
+  // Listen for available updates
+  useEffect(() => {
+    const unsub = window.electronAPI?.onUpdateAvailable(() => {
+      setUpdateModalOpen(true)
+    })
+    return () => unsub?.()
+  }, [])
 
   // Fetch initial state safely
   useEffect(() => {
@@ -137,6 +147,17 @@ export function App() {
             if (set) setSettings(set)
           })
         }}
+        onCheckUpdates={() => {
+          setSettingsOpen(false)
+          setUpdateModalOpen(true)
+          window.electronAPI?.checkForUpdates()
+        }}
+      />
+
+      {/* Auto Update Modal */}
+      <UpdateModal
+        isOpen={updateModalOpen}
+        onClose={() => setUpdateModalOpen(false)}
       />
     </div>
   )

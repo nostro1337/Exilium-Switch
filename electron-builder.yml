@@ -3,6 +3,11 @@ productName: Exilium Switch
 copyright: Copyright © 2026 Nostro
 directories:
   output: release
+publish:
+  provider: github
+  owner: nostro1337
+  repo: Exilium-Switch
+  releaseType: release
 files:
   - dist
   - dist-electron
@@ -21,19 +26,35 @@ extraResources:
 win:
   icon: "build/icon.ico"
   target:
-    - target: portable
+    - target: nsis
       arch:
         - x64
-    - target: dir
+    - target: portable
       arch:
         - x64
   requestedExecutionLevel: requireAdministrator
   sign: null
+  signDlls: false
   signAndEditExecutable: false
   forceCodeSigning: false
-portable:
-  artifactName: "ExiliumSwitch.exe"
-  requestExecutionLevel: "admin"
 nsis:
-  oneClick: true
+  oneClick: false
   perMachine: true
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  installerIcon: "build/installerIcon.ico"
+  uninstallerIcon: "build/uninstallerIcon.ico"
+  installerHeaderIcon: "build/installerIcon.ico"
+  installerSidebar: "build/installerSidebar.bmp"
+  uninstallerSidebar: "build/uninstallerSidebar.bmp"
+  installerHeader: "build/installerHeader.bmp"
+  include: "build/installer.nsh"
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: "Exilium Switch"
+  artifactName: "Exilium Switch Setup ${version}.${ext}"
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+portable:
+  artifactName: "Exilium Switch Portable.exe"
+  requestExecutionLevel: "admin"

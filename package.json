@@ -1,20 +1,24 @@
 {
   "name": "exilium-switch",
-  "version": "1.1.0",
+  "version": "1.3.1",
   "type": "module",
-  "description": "Personal Use VPN Controller",
+  "description": "Exilium Switch",
+  "productName": "Exilium Switch",
   "main": "dist-electron/main.js",
   "author": "Nostro",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "package": "npm run build && electron-builder --win portable",
-    "package:installer": "npm run build && electron-builder --win nsis",
+    "build:dir": "npm run build && electron-builder --win dir && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/patch-executable.ps1",
+    "package": "npm run build:dir && electron-builder --win nsis portable --prepackaged release/win-unpacked",
+    "package:installer": "npm run build:dir && electron-builder --win nsis --prepackaged release/win-unpacked",
+    "package:portable": "npm run build:dir && electron-builder --win portable --prepackaged release/win-unpacked",
     "start": "electron ."
   },
   "dependencies": {
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.9",
     "framer-motion": "^12.4.7",
     "lucide-react": "^0.475.0",
     "react": "^19.0.0",
