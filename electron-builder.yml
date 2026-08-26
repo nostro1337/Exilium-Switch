@@ -44,7 +44,6 @@ nsis:
   perMachine: true
   allowElevation: true
   differentialPackage: true
-  allowToChangeInstallationDirectory: true
   installerIcon: "build/installerIcon.ico"
   uninstallerIcon: "build/uninstallerIcon.ico"
   installerHeaderIcon: "build/installerIcon.ico"
