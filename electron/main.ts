@@ -370,6 +370,28 @@ function saveSettings(settings: Partial<AppSettings>): AppSettings {
 // ============================================================
 // VLESS Link Converter to Sing-box Resident Config
 // ============================================================
+const RUSSIAN_AND_CIS_DOMAINS = [
+  // Top-Level Domains
+  "ru", "xn--p1ai", "su", "kz", "by",
+  // Work & Remote Tools
+  "bitrix24.kz", "bitrix24.ru", "bitrix24.net", "bitrix24.com", "1c-bitrix.ru",
+  "helpdeskeddy.com", "helpdeskeddy.ru",
+  "rmansys.ru", "rmansys.com", "tektonit.ru", "tektonit.com",
+  "anydesk.com",
+  "1c.ru", "moysklad.ru", "kontur.ru", "diadoc.ru", "sbis.ru", "taxcom.ru",
+  // Popular Russian Services & Marketplaces
+  "2ip.ru", "2ip.io", "ozon.ru", "2gis.ru", "wildberries.ru", "wb.ru",
+  "avito.ru", "kinopoisk.ru", "yandex.ru", "ya.ru", "yandex.net",
+  "vk.com", "vk.ru", "mail.ru", "dzen.ru", "gosuslugi.ru",
+  // Banks
+  "sberbank.ru", "sber.ru", "tbank.ru", "tinkoff.ru", "alfabank.ru", "vtb.ru"
+]
+
+const DISCORD_DOMAINS = [
+  "discord.com", "discord.gg", "discordapp.com", "discordapp.net",
+  "discord.media", "discordcdn.com", "discordstatus.com"
+]
+
 function convertVlessToSingBoxConfig(vlessUrl: string): { config: any; name: string } {
   let parsed: URL
   try {
@@ -408,31 +430,23 @@ function convertVlessToSingBoxConfig(vlessUrl: string): { config: any; name: str
     throw new Error(`Тип безопасности "${security}" не поддерживается (требуется Reality)`)
   }
 
-  const russianDomains = [
-    "ru", "xn--p1ai", "su", "2ip.ru", "2ip.io", "ozon.ru", "2gis.ru",
-    "wildberries.ru", "wb.ru", "kinopoisk.ru", "yandex.ru", "ya.ru",
-    "vk.com", "gosuslugi.ru", "sberbank.ru", "tbank.ru", "alfabank.ru", "vtb.ru"
-  ]
-
   const isIpAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(server)
   const routeDirectRule = isIpAddress
     ? { ip_cidr: [`${server}/32`], outbound: "direct" }
     : { domain: [server], outbound: "direct" }
 
   const config: any = {
-    _profileName: name,
     log: { level: "info", timestamp: true },
     dns: {
       servers: [
         { tag: "dns-direct", type: "udp", server: "77.88.8.8", server_port: 53, detour: "direct" },
         { tag: "dns-direct-backup", type: "udp", server: "77.88.8.1", server_port: 53, detour: "direct" },
         { tag: "dns-remote", type: "udp", server: "8.8.8.8", server_port: 53, detour: "proxy-out" },
-        { tag: "dns-remote-backup", type: "udp", server: "1.1.1.1", server_port: 53, detour: "proxy-out" },
-        { tag: "dns-fakeip", type: "fakeip", inet4_range: "198.18.0.0/15" }
+        { tag: "dns-remote-backup", type: "udp", server: "1.1.1.1", server_port: 53, detour: "proxy-out" }
       ],
       rules: [
-        { domain_suffix: russianDomains, server: "dns-direct" },
-        { query_type: ["A", "AAAA"], server: "dns-fakeip" }
+        { domain_suffix: RUSSIAN_AND_CIS_DOMAINS, server: "dns-direct" },
+        { domain_suffix: DISCORD_DOMAINS, server: "dns-remote" }
       ],
       final: "dns-remote",
       strategy: "ipv4_only",
@@ -480,12 +494,13 @@ function convertVlessToSingBoxConfig(vlessUrl: string): { config: any; name: str
         { port: 53, action: "hijack-dns" },
         { ip_version: 6, action: "reject" },
         routeDirectRule,
+        { ip_is_private: true, outbound: "direct" },
+        { domain_suffix: RUSSIAN_AND_CIS_DOMAINS, outbound: "direct" },
+        { domain_suffix: DISCORD_DOMAINS, outbound: "proxy-out" },
         {
           ip_cidr: ["149.154.160.0/20", "91.108.4.0/22", "91.108.8.0/22", "91.108.56.0/22"],
           outbound: "proxy-out"
-        },
-        { ip_is_private: true, outbound: "direct" },
-        { domain_suffix: russianDomains, outbound: "direct" }
+        }
       ],
       final: "proxy-out"
     }
@@ -502,6 +517,38 @@ function getProfilesDir(): string {
   return dir
 }
 
+function getProfileMetaPath(): string {
+  return path.join(getProfilesDir(), 'profiles_meta.json')
+}
+
+function loadProfileMeta(): Record<string, { name?: string }> {
+  try {
+    const metaPath = getProfileMetaPath()
+    if (fs.existsSync(metaPath)) {
+      return JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+    }
+  } catch {}
+  return {}
+}
+
+function saveProfileMeta(id: string, meta: { name?: string }) {
+  try {
+    const current = loadProfileMeta()
+    current[id] = { ...(current[id] || {}), ...meta }
+    fs.writeFileSync(getProfileMetaPath(), JSON.stringify(current, null, 2), 'utf-8')
+  } catch {}
+}
+
+function deleteProfileMeta(id: string) {
+  try {
+    const current = loadProfileMeta()
+    if (current[id]) {
+      delete current[id]
+      fs.writeFileSync(getProfileMetaPath(), JSON.stringify(current, null, 2), 'utf-8')
+    }
+  } catch {}
+}
+
 function purgeLegacyDefaultProfile() {
   try {
     const dir = getProfilesDir()
@@ -516,23 +563,19 @@ function getProfilesList(): ConfigProfile[] {
   const profilesDir = getProfilesDir()
   const settings = loadSettings()
   const activeId = settings.activeProfileId
+  const meta = loadProfileMeta()
 
-  const files = fs.readdirSync(profilesDir).filter(f => f.endsWith('.json') && f !== 'default.json')
+  const files = fs.readdirSync(profilesDir).filter(f => f.endsWith('.json') && f !== 'default.json' && f !== 'profiles_meta.json')
   const profiles: ConfigProfile[] = []
 
   for (const file of files) {
     const fullPath = path.join(profilesDir, file)
     const id = path.basename(file, '.json')
-    let name = id.replace(/[-_]/g, ' ')
+    let name = meta[id]?.name || id.replace(/[-_]/g, ' ')
     
     let createdAt = Date.now()
     try {
       createdAt = fs.statSync(fullPath).birthtimeMs
-      const raw = fs.readFileSync(fullPath, 'utf-8')
-      const parsed = JSON.parse(raw)
-      if (parsed._profileName && typeof parsed._profileName === 'string') {
-        name = parsed._profileName
-      }
     } catch {}
 
     profiles.push({
@@ -1497,6 +1540,7 @@ app.whenReady().then(async () => {
       }
 
       saveSettings({ activeProfileId: safeId })
+      saveProfileMeta(safeId, { name })
 
       const newProfile: ConfigProfile = {
         id: safeId,
@@ -1551,6 +1595,7 @@ app.whenReady().then(async () => {
       if (fs.existsSync(targetPath)) {
         fs.unlinkSync(targetPath)
       }
+      deleteProfileMeta(profileId)
 
       const settings = loadSettings()
       if (settings.activeProfileId === profileId) {
@@ -1632,8 +1677,8 @@ app.whenReady().then(async () => {
         await disableResidentMode()
       }
       isQuitting = true
-      // isSilent: false (shows NSIS finish), isForceRunAfter: true (relaunches updated app)
-      autoUpdater.quitAndInstall(false, true)
+      // isSilent: true (silent NSIS in-place update), isForceRunAfter: true (relaunches updated app)
+      autoUpdater.quitAndInstall(true, true)
     } catch (err: any) {
       addLog(`[Updater] Ошибка перезапуска и установки: ${err.message}`, 'error')
     }

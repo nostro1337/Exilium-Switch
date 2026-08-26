@@ -171,9 +171,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               <button
                 type="button"
                 onClick={onCheckUpdates}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 text-[11px] font-medium transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/10 text-zinc-200 border border-white/10 text-[11px] font-medium transition-colors cursor-pointer"
               >
-                <Sparkles size={12} />
+                <Sparkles size={12} className="text-zinc-300" />
                 <span>Проверить обновления</span>
               </button>
             )}

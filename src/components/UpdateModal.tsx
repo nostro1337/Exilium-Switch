@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Download, CheckCircle2, AlertCircle, RefreshCw, X, ArrowUpCircle } from 'lucide-react'
+import { Sparkles, Download, Check, AlertCircle, RefreshCw, X, ArrowUpCircle } from 'lucide-react'
 import type { UpdateInfo, UpdateProgress } from '../../electron/preload'
 
 interface UpdateModalProps {
   isOpen: boolean
   onClose: () => void
-  manualCheck?: boolean
 }
 
 type UpdateState = 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'up-to-date' | 'error'
@@ -23,6 +22,12 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose }) => 
   const [errorMessage, setErrorMessage] = useState<string>('')
 
   useEffect(() => {
+    if (isOpen && state === 'idle') {
+      setState('checking')
+    }
+  }, [isOpen, state])
+
+  useEffect(() => {
     const unsubChecking = window.electronAPI?.onUpdateChecking(() => {
       setState('checking')
     })
@@ -35,7 +40,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose }) => 
     const unsubNotAvailable = window.electronAPI?.onUpdateNotAvailable(() => {
       setState('up-to-date')
       setTimeout(() => {
-        if (state === 'up-to-date') onClose()
+        onClose()
       }, 2500)
     })
 
@@ -62,7 +67,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose }) => 
       unsubDownloaded?.()
       unsubError?.()
     }
-  }, [state, onClose])
+  }, [onClose])
 
   if (!isOpen) return null
 
@@ -89,179 +94,187 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose }) => 
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm select-none">
         <motion.div
-          initial={{ opacity: 0, scale: 0.92, y: 10 }}
+          initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.92, y: 10 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[#10121a] p-6 shadow-2xl text-white overflow-hidden"
+          exit={{ opacity: 0, scale: 0.95, y: 15 }}
+          transition={{ type: 'spring', stiffness: 450, damping: 30 }}
+          className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-[#0e0e11] shadow-2xl text-white overflow-hidden flex flex-col"
         >
-          {/* Subtle Ambient Accent Glow */}
-          <div className="absolute -top-20 -right-20 w-40 h-40 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-500/15 rounded-full blur-3xl pointer-events-none" />
-
-          {/* Close button (allowed when not downloading or installing) */}
-          {state !== 'downloading' && (
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
-            >
-              <X size={18} />
-            </button>
-          )}
-
-          {/* State: Checking */}
-          {state === 'checking' && (
-            <div className="flex flex-col items-center text-center py-6">
-              <RefreshCw className="animate-spin text-blue-400 mb-4" size={36} />
-              <h3 className="text-base font-medium">Поиск обновлений...</h3>
-              <p className="text-xs text-white/50 mt-1">Проверяем наличие новой версии на сервере</p>
+          {/* Header */}
+          <div className="h-12 px-4 border-b border-white/10 flex items-center justify-between bg-[#141418] shrink-0">
+            <div className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
+              <Sparkles className="w-4 h-4 text-zinc-300" strokeWidth={2} />
+              <span>Обновление Exilium Switch</span>
             </div>
-          )}
+            {state !== 'downloading' && (
+              <button
+                onClick={onClose}
+                className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" strokeWidth={2} />
+              </button>
+            )}
+          </div>
 
-          {/* State: Up to Date */}
-          {state === 'up-to-date' && (
-            <div className="flex flex-col items-center text-center py-6">
-              <CheckCircle2 className="text-emerald-400 mb-3" size={40} />
-              <h3 className="text-base font-semibold">Установлена актуальная версия</h3>
-              <p className="text-xs text-white/60 mt-1">У вас уже стоит самая свежая версия Exilium Switch</p>
-            </div>
-          )}
+          {/* Modal Body */}
+          <div className="p-4 space-y-4">
+            {/* State: Checking */}
+            {state === 'checking' && (
+              <div className="flex flex-col items-center text-center py-6">
+                <RefreshCw className="animate-spin text-zinc-400 mb-3" size={32} />
+                <h3 className="text-sm font-medium text-zinc-200">Поиск обновлений...</h3>
+                <p className="text-xs text-zinc-500 mt-1">Проверяем наличие новой версии на GitHub</p>
+              </div>
+            )}
 
-          {/* State: Available */}
-          {state === 'available' && (
-            <div className="flex flex-col">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                  <Sparkles size={24} />
+            {/* State: Up to Date */}
+            {state === 'up-to-date' && (
+              <div className="flex flex-col items-center text-center py-6">
+                <div className="w-10 h-10 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center text-zinc-200 mb-3">
+                  <Check className="w-5 h-5 stroke-[2.5]" />
                 </div>
-                <div>
-                  <h3 className="text-base font-semibold text-white">Доступно обновление</h3>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                      v{updateInfo?.version || '1.3.1'}
+                <h3 className="text-sm font-semibold text-zinc-100">Установлена актуальная версия</h3>
+                <p className="text-xs text-zinc-500 mt-1">У вас уже стоит самая свежая версия Exilium Switch</p>
+              </div>
+            )}
+
+            {/* State: Available */}
+            {state === 'available' && (
+              <div className="flex flex-col space-y-3">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.04] border border-white/10">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-zinc-400">Доступна новая версия</span>
+                    <span className="text-sm font-bold text-white font-mono mt-0.5">
+                      v{updateInfo?.version || '1.4.0'}
                     </span>
-                    <span className="text-xs text-white/50">Рекомендуется к установке</span>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/[0.08] text-zinc-300 border border-white/10">
+                    GitHub Release
+                  </span>
+                </div>
+
+                {/* Release Notes */}
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 max-h-36 overflow-y-auto text-xs text-zinc-300 leading-relaxed font-sans">
+                  <p className="font-semibold text-zinc-100 mb-1 text-[11px] uppercase tracking-wider">Что нового:</p>
+                  {updateInfo?.releaseNotes ? (
+                    typeof updateInfo.releaseNotes === 'string' ? (
+                      <div dangerouslySetInnerHTML={{ __html: updateInfo.releaseNotes }} />
+                    ) : (
+                      updateInfo.releaseNotes.map((n, i) => <p key={i}>{n.note}</p>)
+                    )
+                  ) : (
+                    <p className="text-zinc-400">Прямой импорт VLESS из буфера, Real-IP DNS без утечек, поддержка Discord и корпоративных сервисов.</p>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    onClick={onClose}
+                    className="px-3 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+                  >
+                    Позже
+                  </button>
+                  <button
+                    onClick={handleStartDownload}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-white text-black hover:bg-zinc-200 transition-all active:scale-[0.98] cursor-pointer"
+                  >
+                    <Download size={13} strokeWidth={2.5} />
+                    <span>Обновить</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* State: Downloading */}
+            {state === 'downloading' && (
+              <div className="flex flex-col space-y-3 py-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Download className="text-zinc-200 animate-pulse" size={16} />
+                    <span className="text-xs font-medium text-zinc-200">Загрузка обновления...</span>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-white">{progress.percent}%</span>
+                </div>
+
+                {/* Progress Track */}
+                <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                  <motion.div
+                    className="h-full bg-white rounded-full drop-shadow-[0_0_8px_rgba(255,255,255,0.7)]"
+                    style={{ width: `${progress.percent}%` }}
+                    transition={{ ease: 'easeOut', duration: 0.2 }}
+                  />
+                </div>
+
+                <div className="flex justify-between items-center text-[10px] text-zinc-500 font-mono">
+                  <span>{formatBytes(progress.transferred)} из {formatBytes(progress.total)}</span>
+                  <span>{formatBytes(progress.bytesPerSecond)}/с</span>
+                </div>
+              </div>
+            )}
+
+            {/* State: Ready */}
+            {state === 'ready' && (
+              <div className="flex flex-col space-y-3">
+                <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex items-start gap-2.5">
+                  <div className="p-1 rounded-full bg-white text-black shrink-0 mt-0.5">
+                    <Check size={12} strokeWidth={3} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-white">Обновление готово к установке</h4>
+                    <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                      Приложение обновится в фоновом режиме до <span className="font-mono text-zinc-200 font-bold">v{updateInfo?.version || ''}</span> и автоматически перезапустится. Все профили сохранятся.
+                    </p>
                   </div>
                 </div>
-              </div>
 
-              {/* Release Notes */}
-              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 max-h-36 overflow-y-auto mb-5 text-xs text-white/80 leading-relaxed font-sans">
-                <p className="font-semibold text-white/90 mb-1">Что нового:</p>
-                {updateInfo?.releaseNotes ? (
-                  typeof updateInfo.releaseNotes === 'string' ? (
-                    <div dangerouslySetInnerHTML={{ __html: updateInfo.releaseNotes }} />
-                  ) : (
-                    updateInfo.releaseNotes.map((n, i) => <p key={i}>{n.note}</p>)
-                  )
-                ) : (
-                  <p className="text-white/60">Улучшена стабильность соединения, оптимизирован сетевой стек и безопасность.</p>
-                )}
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-2.5">
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-white/70 hover:text-white hover:bg-white/5 transition-colors"
-                >
-                  Напомнить позже
-                </button>
-                <button
-                  onClick={handleStartDownload}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <Download size={14} />
-                  Обновить
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* State: Downloading */}
-          {state === 'downloading' && (
-            <div className="flex flex-col py-2">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Download className="text-blue-400 animate-bounce" size={18} />
-                  <span className="text-sm font-semibold">Загрузка обновления...</span>
-                </div>
-                <span className="text-sm font-mono font-bold text-blue-400">{progress.percent}%</span>
-              </div>
-
-              {/* Progress Track */}
-              <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden mb-3">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
-                  style={{ width: `${progress.percent}%` }}
-                  transition={{ ease: 'easeOut', duration: 0.2 }}
-                />
-              </div>
-
-              <div className="flex justify-between items-center text-[11px] text-white/50 font-mono">
-                <span>{formatBytes(progress.transferred)} из {formatBytes(progress.total)}</span>
-                <span>{formatBytes(progress.bytesPerSecond)}/с</span>
-              </div>
-            </div>
-          )}
-
-          {/* State: Ready (Downloaded -> User choice to restart) */}
-          {state === 'ready' && (
-            <div className="flex flex-col text-left py-1">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  <CheckCircle2 size={24} />
-                </div>
-                <div>
-                  <h3 className="text-base font-semibold text-white">Обновление готово к установке</h3>
-                  <p className="text-xs text-white/60">Все файлы успешно скачаны и проверены</p>
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    onClick={onClose}
+                    className="px-3 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+                  >
+                    Позже
+                  </button>
+                  <button
+                    onClick={handleRestartNow}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-white text-black hover:bg-zinc-200 transition-all active:scale-[0.98] cursor-pointer"
+                  >
+                    <ArrowUpCircle size={14} strokeWidth={2.5} />
+                    <span>Перезапустить сейчас</span>
+                  </button>
                 </div>
               </div>
+            )}
 
-              <p className="text-xs text-white/70 leading-relaxed mb-5 p-3 rounded-xl bg-white/[0.03] border border-white/5">
-                Приложение закроется, за 2 секунды применит новую версию <span className="font-mono text-emerald-400 font-semibold">v{updateInfo?.version || ''}</span> и перезапустится. Все ваши профили и настройки сохранятся.
-              </p>
+            {/* State: Error */}
+            {state === 'error' && (
+              <div className="flex flex-col space-y-3">
+                <div className="flex items-center gap-2 text-red-400">
+                  <AlertCircle size={18} />
+                  <h4 className="text-xs font-semibold">Ошибка обновления</h4>
+                </div>
+                <p className="text-[11px] text-zinc-400 bg-white/[0.02] border border-white/10 p-2.5 rounded-xl font-mono break-all leading-relaxed">
+                  {errorMessage}
+                </p>
+                <div className="flex justify-end pt-1">
+                  <button
+                    onClick={onClose}
+                    className="px-3 py-1.5 rounded-xl text-xs font-medium bg-white/[0.06] hover:bg-white/10 text-zinc-200 transition-colors cursor-pointer"
+                  >
+                    Закрыть
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
-              <div className="flex items-center justify-end gap-2.5">
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-white/70 hover:text-white hover:bg-white/5 transition-colors"
-                >
-                  Перезапустить позже
-                </button>
-                <button
-                  onClick={handleRestartNow}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <ArrowUpCircle size={15} />
-                  Перезапустить сейчас
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* State: Error */}
-          {state === 'error' && (
-            <div className="flex flex-col text-left py-1">
-              <div className="flex items-center gap-3 mb-3 text-rose-400">
-                <AlertCircle size={24} />
-                <h3 className="text-base font-semibold text-white">Ошибка обновления</h3>
-              </div>
-              <p className="text-xs text-white/70 bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl mb-4 font-mono break-all">
-                {errorMessage}
-              </p>
-              <div className="flex justify-end">
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-xl text-xs font-medium bg-white/10 hover:bg-white/20 text-white transition-colors"
-                >
-                  Закрыть
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Footer note */}
+          <div className="p-3 border-t border-white/10 bg-[#0a0a0d] flex items-center justify-between text-[10px] text-zinc-500">
+            <span>Exilium Switch Updater</span>
+            <span className="font-mono text-[9px]">by Nostro</span>
+          </div>
         </motion.div>
       </div>
     </AnimatePresence>

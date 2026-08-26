@@ -60,6 +60,35 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
     } catch {}
   }
 
+  const handleDirectPasteAndImport = async () => {
+    if (isRunning) {
+      setErrorMsg('Отключите Shield перед добавлением нового профиля')
+      return
+    }
+    setErrorMsg(null)
+    setLoading(true)
+    try {
+      const text = await navigator.clipboard.readText()
+      const trimmed = (text || '').trim()
+      if (!trimmed.startsWith('vless://')) {
+        setErrorMsg('В буфере обмена нет ссылки vless://. Скопируйте ссылку и нажмите снова.')
+        return
+      }
+      const res = await window.electronAPI?.importVlessLink(trimmed)
+      if (res && res.success) {
+        setVlessText('')
+        setShowLinkInput(false)
+        await loadProfiles()
+      } else if (res && res.error) {
+        setErrorMsg(res.error)
+      }
+    } catch (err: any) {
+      setErrorMsg('Не удалось прочитать буфер обмена: ' + (err.message || err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleImportVless = async () => {
     if (isRunning) {
       setErrorMsg('Отключите Shield перед добавлением нового профиля')
@@ -225,13 +254,13 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
             {showLinkInput ? (
               <div className="p-3 rounded-xl bg-white/[0.04] border border-white/15 space-y-2.5">
                 <div className="flex items-center justify-between text-xs text-zinc-200 font-semibold">
-                  <div className="flex items-center gap-1.5 text-blue-400">
+                  <div className="flex items-center gap-1.5 text-zinc-200">
                     <Link2 size={14} />
                     <span>Импорт ссылки VLESS</span>
                   </div>
                   <button
                     onClick={() => setShowLinkInput(false)}
-                    className="p-1 rounded text-zinc-500 hover:text-white transition-colors"
+                    className="p-1 rounded text-zinc-500 hover:text-white transition-colors cursor-pointer"
                   >
                     <X size={14} />
                   </button>
@@ -241,13 +270,13 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
                   value={vlessText}
                   onChange={(e) => setVlessText(e.target.value)}
                   placeholder="Вставьте ссылку vless://..."
-                  className="w-full bg-black/60 border border-white/10 rounded-lg p-2 text-[11px] text-zinc-200 font-mono resize-none focus:outline-none focus:border-blue-500/50"
+                  className="w-full bg-black/60 border border-white/10 rounded-lg p-2 text-[11px] text-zinc-200 font-mono resize-none focus:outline-none focus:border-white/40"
                 />
                 <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
                     onClick={handlePasteFromClipboard}
-                    className="px-2.5 py-1.5 rounded-lg bg-white/[0.08] hover:bg-white/15 text-zinc-300 text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-lg bg-white/[0.08] hover:bg-white/15 text-zinc-300 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Clipboard size={12} />
                     <span>Вставить</span>
@@ -264,42 +293,59 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
                       type="button"
                       onClick={handleImportVless}
                       disabled={!vlessText.trim() || loading}
-                      className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-xs font-semibold text-white flex items-center gap-1 shadow-md shadow-blue-600/30 transition-all cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-lg bg-white text-black hover:bg-zinc-200 disabled:opacity-40 text-xs font-semibold flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer"
                     >
-                      <Check size={13} />
+                      <Check size={13} strokeWidth={2.5} />
                       <span>{loading ? 'Создание...' : 'Импортировать'}</span>
                     </button>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                {/* 1-Click Clipboard Import */}
                 <button
                   type="button"
-                  onClick={() => setShowLinkInput(true)}
+                  onClick={handleDirectPasteAndImport}
                   disabled={isRunning || loading}
-                  className={`py-2 px-2.5 rounded-xl border border-dashed text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                  className={`w-full py-2.5 px-3 rounded-xl border border-dashed text-xs font-medium flex items-center justify-center gap-2 transition-all ${
                     isRunning
                       ? 'border-white/10 text-zinc-600 cursor-not-allowed'
-                      : 'border-blue-500/30 hover:border-blue-500/60 bg-blue-500/[0.05] hover:bg-blue-500/[0.1] text-blue-300 hover:text-blue-200 cursor-pointer'
+                      : 'border-white/30 hover:border-white/50 bg-white/[0.06] hover:bg-white/10 text-white cursor-pointer active:scale-[0.99]'
                   }`}
                 >
-                  <Link2 size={13} />
-                  <span>По ссылке VLESS</span>
+                  <Clipboard size={14} className="text-zinc-200" />
+                  <span>{loading ? 'Импорт...' : 'Вставить VLESS из буфера'}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={handleImport}
-                  disabled={isRunning || loading}
-                  className={`py-2 px-2.5 rounded-xl border border-dashed text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
-                    isRunning
-                      ? 'border-white/10 text-zinc-600 cursor-not-allowed'
-                      : 'border-white/20 hover:border-white/40 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white cursor-pointer'
-                  }`}
-                >
-                  <FileCode size={13} />
-                  <span>Из .json файла</span>
-                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowLinkInput(true)}
+                    disabled={isRunning || loading}
+                    className={`py-2 px-2 rounded-xl border border-dashed text-[11px] font-medium flex items-center justify-center gap-1.5 transition-all ${
+                      isRunning
+                        ? 'border-white/10 text-zinc-600 cursor-not-allowed'
+                        : 'border-white/15 hover:border-white/30 bg-white/[0.02] hover:bg-white/[0.06] text-zinc-300 hover:text-white cursor-pointer'
+                    }`}
+                  >
+                    <Link2 size={12} />
+                    <span>Ввести вручную</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleImport}
+                    disabled={isRunning || loading}
+                    className={`py-2 px-2 rounded-xl border border-dashed text-[11px] font-medium flex items-center justify-center gap-1.5 transition-all ${
+                      isRunning
+                        ? 'border-white/10 text-zinc-600 cursor-not-allowed'
+                        : 'border-white/15 hover:border-white/30 bg-white/[0.02] hover:bg-white/[0.06] text-zinc-300 hover:text-white cursor-pointer'
+                    }`}
+                  >
+                    <FileCode size={12} />
+                    <span>Файл .json</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

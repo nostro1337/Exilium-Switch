@@ -40,9 +40,10 @@ win:
   signAndEditExecutable: false
   forceCodeSigning: false
 nsis:
-  oneClick: false
+  oneClick: true
   perMachine: true
   allowElevation: true
+  differentialPackage: true
   allowToChangeInstallationDirectory: true
   installerIcon: "build/installerIcon.ico"
   uninstallerIcon: "build/uninstallerIcon.ico"
