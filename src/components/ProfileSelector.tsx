@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Layers, Plus, Check, Trash2, X, FileCode, Shield, UploadCloud } from 'lucide-react'
+import { Layers, Plus, Check, Trash2, X, FileCode, Shield, UploadCloud, Link2, Clipboard } from 'lucide-react'
 import type { ConfigProfile } from '../../electron/preload'
 
 interface ProfileSelectorProps {
@@ -17,6 +17,8 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
   const [profiles, setProfiles] = useState<ConfigProfile[]>([])
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [showLinkInput, setShowLinkInput] = useState(false)
+  const [vlessText, setVlessText] = useState('')
 
   const loadProfiles = async () => {
     try {
@@ -44,6 +46,38 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
       if (res && res.success) {
         await loadProfiles()
       } else if (res && res.error && res.error !== 'Импорт отменен') {
+        setErrorMsg(res.error)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text) setVlessText(text.trim())
+    } catch {}
+  }
+
+  const handleImportVless = async () => {
+    if (isRunning) {
+      setErrorMsg('Отключите Shield перед добавлением нового профиля')
+      return
+    }
+    if (!vlessText.trim()) {
+      setErrorMsg('Вставьте VLESS ссылку')
+      return
+    }
+    setLoading(true)
+    setErrorMsg(null)
+    try {
+      const res = await window.electronAPI?.importVlessLink(vlessText.trim())
+      if (res && res.success) {
+        setVlessText('')
+        setShowLinkInput(false)
+        await loadProfiles()
+      } else if (res && res.error) {
         setErrorMsg(res.error)
       }
     } finally {
@@ -187,19 +221,87 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
               </div>
             )}
 
-            {/* Import Button */}
-            <button
-              onClick={handleImport}
-              disabled={isRunning || loading}
-              className={`w-full py-2.5 px-3 rounded-xl border border-dashed text-xs font-medium flex items-center justify-center gap-2 transition-all ${
-                isRunning
-                  ? 'border-white/10 text-zinc-600 cursor-not-allowed'
-                  : 'border-white/20 hover:border-white/40 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-200 hover:text-white cursor-pointer'
-              }`}
-            >
-              <Plus className="w-4 h-4" strokeWidth={2} />
-              <span>{loading ? 'Импорт файла...' : 'Добавить .json конфиг'}</span>
-            </button>
+            {/* Import Actions */}
+            {showLinkInput ? (
+              <div className="p-3 rounded-xl bg-white/[0.04] border border-white/15 space-y-2.5">
+                <div className="flex items-center justify-between text-xs text-zinc-200 font-semibold">
+                  <div className="flex items-center gap-1.5 text-blue-400">
+                    <Link2 size={14} />
+                    <span>Импорт ссылки VLESS</span>
+                  </div>
+                  <button
+                    onClick={() => setShowLinkInput(false)}
+                    className="p-1 rounded text-zinc-500 hover:text-white transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <textarea
+                  rows={3}
+                  value={vlessText}
+                  onChange={(e) => setVlessText(e.target.value)}
+                  placeholder="Вставьте ссылку vless://..."
+                  className="w-full bg-black/60 border border-white/10 rounded-lg p-2 text-[11px] text-zinc-200 font-mono resize-none focus:outline-none focus:border-blue-500/50"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePasteFromClipboard}
+                    className="px-2.5 py-1.5 rounded-lg bg-white/[0.08] hover:bg-white/15 text-zinc-300 text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <Clipboard size={12} />
+                    <span>Вставить</span>
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowLinkInput(false)}
+                      className="px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-white text-xs transition-colors cursor-pointer"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleImportVless}
+                      disabled={!vlessText.trim() || loading}
+                      className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-xs font-semibold text-white flex items-center gap-1 shadow-md shadow-blue-600/30 transition-all cursor-pointer"
+                    >
+                      <Check size={13} />
+                      <span>{loading ? 'Создание...' : 'Импортировать'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLinkInput(true)}
+                  disabled={isRunning || loading}
+                  className={`py-2 px-2.5 rounded-xl border border-dashed text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                    isRunning
+                      ? 'border-white/10 text-zinc-600 cursor-not-allowed'
+                      : 'border-blue-500/30 hover:border-blue-500/60 bg-blue-500/[0.05] hover:bg-blue-500/[0.1] text-blue-300 hover:text-blue-200 cursor-pointer'
+                  }`}
+                >
+                  <Link2 size={13} />
+                  <span>По ссылке VLESS</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleImport}
+                  disabled={isRunning || loading}
+                  className={`py-2 px-2.5 rounded-xl border border-dashed text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                    isRunning
+                      ? 'border-white/10 text-zinc-600 cursor-not-allowed'
+                      : 'border-white/20 hover:border-white/40 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white cursor-pointer'
+                  }`}
+                >
+                  <FileCode size={13} />
+                  <span>Из .json файла</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Footer note */}

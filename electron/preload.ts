@@ -44,6 +44,7 @@ export interface IpcApi {
   // Profile Management
   getProfiles: () => Promise<ConfigProfile[]>
   importProfile: () => Promise<{ success: boolean; profile?: ConfigProfile; error?: string }>
+  importVlessLink: (vlessUrl: string) => Promise<{ success: boolean; profile?: ConfigProfile; error?: string }>
   selectProfile: (profileId: string) => Promise<{ success: boolean; error?: string }>
   deleteProfile: (profileId: string) => Promise<{ success: boolean; error?: string }>
   
@@ -100,6 +101,7 @@ const api: IpcApi = {
   // Profiles
   getProfiles: () => ipcRenderer.invoke('get-profiles'),
   importProfile: () => ipcRenderer.invoke('import-profile'),
+  importVlessLink: (vlessUrl) => ipcRenderer.invoke('import-vless-link', vlessUrl),
   selectProfile: (profileId) => ipcRenderer.invoke('select-profile', profileId),
   deleteProfile: (profileId) => ipcRenderer.invoke('delete-profile', profileId),
   

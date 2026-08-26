@@ -368,8 +368,132 @@ function saveSettings(settings: Partial<AppSettings>): AppSettings {
 
 
 // ============================================================
-// Profile Management (100% User Managed, Zero Bundled Configs)
+// VLESS Link Converter to Sing-box Resident Config
 // ============================================================
+function convertVlessToSingBoxConfig(vlessUrl: string): { config: any; name: string } {
+  let parsed: URL
+  try {
+    parsed = new URL(vlessUrl.trim())
+  } catch {
+    throw new Error('Некорректный формат ссылки')
+  }
+
+  if (parsed.protocol !== 'vless:') {
+    throw new Error('Ссылка должна начинаться с vless://')
+  }
+
+  const uuid = parsed.username
+  if (!uuid) {
+    throw new Error('В ссылке отсутствует UUID пользователя')
+  }
+
+  const server = parsed.hostname
+  if (!server) {
+    throw new Error('В ссылке отсутствует адрес сервера')
+  }
+
+  const port = parsed.port ? parseInt(parsed.port, 10) : 443
+  const rawName = parsed.hash ? decodeURIComponent(parsed.hash.replace(/^#/, '')) : `${server}:${port}`
+  const name = rawName.trim() || `${server}:${port}`
+
+  const params = parsed.searchParams
+  const flow = params.get('flow') || 'xtls-rprx-vision'
+  const security = params.get('security') || 'reality'
+  const pbk = params.get('pbk') || ''
+  const sid = params.get('sid') || ''
+  const sni = params.get('sni') || 'dl.google.com'
+  const fp = params.get('fp') || 'chrome'
+
+  if (security !== 'reality') {
+    throw new Error(`Тип безопасности "${security}" не поддерживается (требуется Reality)`)
+  }
+
+  const russianDomains = [
+    "ru", "xn--p1ai", "su", "2ip.ru", "2ip.io", "ozon.ru", "2gis.ru",
+    "wildberries.ru", "wb.ru", "kinopoisk.ru", "yandex.ru", "ya.ru",
+    "vk.com", "gosuslugi.ru", "sberbank.ru", "tbank.ru", "alfabank.ru", "vtb.ru"
+  ]
+
+  const isIpAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(server)
+  const routeDirectRule = isIpAddress
+    ? { ip_cidr: [`${server}/32`], outbound: "direct" }
+    : { domain: [server], outbound: "direct" }
+
+  const config: any = {
+    _profileName: name,
+    log: { level: "info", timestamp: true },
+    dns: {
+      servers: [
+        { tag: "dns-direct", type: "udp", server: "77.88.8.8", server_port: 53, detour: "direct" },
+        { tag: "dns-direct-backup", type: "udp", server: "77.88.8.1", server_port: 53, detour: "direct" },
+        { tag: "dns-remote", type: "udp", server: "8.8.8.8", server_port: 53, detour: "proxy-out" },
+        { tag: "dns-remote-backup", type: "udp", server: "1.1.1.1", server_port: 53, detour: "proxy-out" },
+        { tag: "dns-fakeip", type: "fakeip", inet4_range: "198.18.0.0/15" }
+      ],
+      rules: [
+        { domain_suffix: russianDomains, server: "dns-direct" },
+        { query_type: ["A", "AAAA"], server: "dns-fakeip" }
+      ],
+      final: "dns-remote",
+      strategy: "ipv4_only",
+      cache_capacity: 10000
+    },
+    inbounds: [
+      {
+        type: "tun",
+        tag: "tun-in",
+        interface_name: "singbox-tun0",
+        address: ["172.19.0.1/30", "fd00::1/126"],
+        mtu: 1400,
+        auto_route: true,
+        strict_route: true,
+        endpoint_independent_nat: true,
+        stack: "mixed"
+      }
+    ],
+    outbounds: [
+      {
+        type: "vless",
+        tag: "proxy-out",
+        server: server,
+        server_port: port,
+        uuid: uuid,
+        flow: flow,
+        domain_strategy: "ipv4_only",
+        domain_resolver: "dns-direct",
+        tls: {
+          enabled: true,
+          server_name: sni,
+          utls: { enabled: true, fingerprint: fp },
+          reality: { enabled: true, public_key: pbk, short_id: sid }
+        },
+        tcp_fast_open: true
+      },
+      { type: "direct", tag: "direct", domain_resolver: "dns-direct" }
+    ],
+    route: {
+      auto_detect_interface: true,
+      default_domain_resolver: "dns-direct",
+      rules: [
+        { action: "sniff" },
+        { protocol: "dns", action: "hijack-dns" },
+        { port: 53, action: "hijack-dns" },
+        { ip_version: 6, action: "reject" },
+        routeDirectRule,
+        {
+          ip_cidr: ["149.154.160.0/20", "91.108.4.0/22", "91.108.8.0/22", "91.108.56.0/22"],
+          outbound: "proxy-out"
+        },
+        { ip_is_private: true, outbound: "direct" },
+        { domain_suffix: russianDomains, outbound: "direct" }
+      ],
+      final: "proxy-out"
+    }
+  }
+
+  return { config, name }
+}
+
 function getProfilesDir(): string {
   const dir = path.join(app.getPath('userData'), 'profiles')
   if (!fs.existsSync(dir)) {
@@ -399,11 +523,16 @@ function getProfilesList(): ConfigProfile[] {
   for (const file of files) {
     const fullPath = path.join(profilesDir, file)
     const id = path.basename(file, '.json')
-    const name = id.replace(/[-_]/g, ' ')
+    let name = id.replace(/[-_]/g, ' ')
     
     let createdAt = Date.now()
     try {
       createdAt = fs.statSync(fullPath).birthtimeMs
+      const raw = fs.readFileSync(fullPath, 'utf-8')
+      const parsed = JSON.parse(raw)
+      if (parsed._profileName && typeof parsed._profileName === 'string') {
+        name = parsed._profileName
+      }
     } catch {}
 
     profiles.push({
@@ -1335,6 +1464,54 @@ app.whenReady().then(async () => {
       return { success: true, profile: newProfile }
     } catch (err: any) {
       addLog(`Ошибка импорта профиля: ${err.message}`, 'error')
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('import-vless-link', async (_event, rawLink: string) => {
+    try {
+      const link = (rawLink || '').trim()
+      if (!link) {
+        return { success: false, error: 'Ссылка пустая' }
+      }
+
+      const { config, name } = convertVlessToSingBoxConfig(link)
+      const rawContent = JSON.stringify(config, null, 2)
+
+      const safeId = name.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase().slice(0, 32) + '-' + Date.now().toString(36)
+      const profilesDir = getProfilesDir()
+      const destPath = path.join(profilesDir, `${safeId}.json`)
+
+      fs.writeFileSync(destPath, rawContent, 'utf-8')
+
+      // Verify with sing-box binary
+      const binary = getSingBoxBinaryPath()
+      if (binary) {
+        try {
+          await execFileAsync(binary.exePath, ['check', '-c', destPath], { cwd: binary.dir })
+        } catch (checkErr: any) {
+          try { fs.unlinkSync(destPath) } catch {}
+          addLog(`Ошибка валидации конфига: ${checkErr.message}`, 'error')
+          return { success: false, error: `Конфиг не прошел валидацию ядра: ${checkErr.message}` }
+        }
+      }
+
+      saveSettings({ activeProfileId: safeId })
+
+      const newProfile: ConfigProfile = {
+        id: safeId,
+        name: name,
+        filename: `${safeId}.json`,
+        path: destPath,
+        createdAt: Date.now(),
+        isActive: true
+      }
+
+      addLog(`Профиль "${name}" успешно создан из VLESS-ссылки!`, 'success')
+      await updateStatusBroadcast()
+      return { success: true, profile: newProfile }
+    } catch (err: any) {
+      addLog(`Ошибка создания профиля из VLESS-ссылки: ${err.message}`, 'error')
       return { success: false, error: err.message }
     }
   })
