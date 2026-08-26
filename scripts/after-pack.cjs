@@ -39,12 +39,12 @@ exports.default = async function (context) {
   rceditPath = findRcedit(cacheBase);
 
   if (rceditPath && fs.existsSync(exePath)) {
-    console.log(`[afterPack] Patching icon, manifest (requireAdministrator), and metadata on ${exePath}...`);
+    console.log(`[afterPack] Patching icon, manifest (highestAvailable), and metadata on ${exePath}...`);
     try {
       execFileSync(rceditPath, [
         exePath,
         '--set-icon', iconPath,
-        '--set-requested-execution-level', 'requireAdministrator',
+        '--set-requested-execution-level', 'highestAvailable',
         '--set-version-string', 'FileDescription', 'Exilium Switch',
         '--set-version-string', 'ProductName', 'Exilium Switch',
         '--set-version-string', 'CompanyName', 'Nostro',

@@ -7,6 +7,7 @@ interface TitleBarProps {
   onToggleSettings: () => void
   onToggleLogs: () => void
   onToggleProfiles: () => void
+  onCheckUpdates?: () => void
   logsOpen: boolean
   profilesOpen: boolean
 }
@@ -16,10 +17,11 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   onToggleSettings,
   onToggleLogs,
   onToggleProfiles,
+  onCheckUpdates,
   logsOpen,
   profilesOpen
 }) => {
-  const [version, setVersion] = React.useState('1.3.1')
+  const [version, setVersion] = React.useState('1.4.2')
 
   React.useEffect(() => {
     window.electronAPI?.getAppVersion?.().then((v) => {
@@ -56,9 +58,14 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           }`}>
             Exilium<span className="text-white font-bold">Switch</span>
           </span>
-          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-zinc-400 border border-white/[0.06]">
-            v{version}
-          </span>
+          <button
+            type="button"
+            onClick={onCheckUpdates}
+            title="Проверить наличие обновлений"
+            className="no-drag non-app-drag-region text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.12] text-zinc-400 hover:text-white border border-white/[0.08] hover:border-white/20 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+          >
+            <span>v{version}</span>
+          </button>
         </div>
       </div>
 

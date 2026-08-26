@@ -63,12 +63,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 select-none"
+      onClick={onClose}
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 select-none cursor-default"
     >
       <motion.div
         initial={{ scale: 0.95, y: 10 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.95, y: 10 }}
+        onClick={(e) => e.stopPropagation()}
         className="w-full max-w-sm bg-[#111114] border border-white/12 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
       >
         {/* Header */}

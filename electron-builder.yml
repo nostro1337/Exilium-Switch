@@ -35,7 +35,7 @@ win:
     - target: portable
       arch:
         - x64
-  requestedExecutionLevel: requireAdministrator
+  requestedExecutionLevel: highestAvailable
   sign: null
   signDlls: false
   signAndEditExecutable: false

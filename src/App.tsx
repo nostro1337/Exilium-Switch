@@ -94,6 +94,13 @@ export function App() {
         onToggleSettings={() => setSettingsOpen(true)}
         onToggleLogs={() => setLogsOpen(!logsOpen)}
         onToggleProfiles={() => setProfilesOpen(!profilesOpen)}
+        onCheckUpdates={() => {
+          setSettingsOpen(false)
+          setLogsOpen(false)
+          setProfilesOpen(false)
+          setUpdateModalOpen(true)
+          window.electronAPI?.checkForUpdates()
+        }}
         logsOpen={logsOpen}
         profilesOpen={profilesOpen}
       />

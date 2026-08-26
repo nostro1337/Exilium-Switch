@@ -12,35 +12,6 @@ const __dirname = path.dirname(__filename)
 
 const execFileAsync = promisify(execFile)
 
-// Helper: Check if current process has true Windows Administrator privileges
-function isProcessElevated(): boolean {
-  if (process.platform !== 'win32') return true
-  try {
-    execFileSync('net', ['session'], { stdio: 'ignore' })
-    return true
-  } catch {
-    return false
-  }
-}
-
-// In packaged mode, enforce automatic Administrator elevation without user manual right-clicking
-if (app.isPackaged && !isProcessElevated()) {
-  const exePath = process.execPath
-  const args = process.argv.slice(1).map((a) => `"${a}"`).join(' ')
-  try {
-    spawn('powershell.exe', [
-      '-NoProfile',
-      '-WindowStyle', 'Hidden',
-      '-Command',
-      `Start-Process -FilePath "${exePath}" -ArgumentList '${args}' -Verb RunAs`
-    ], {
-      detached: true,
-      stdio: 'ignore'
-    }).unref()
-  } catch {}
-  app.exit(0)
-}
-
 // Single Instance Lock (Prevents duplicate background processes)
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
