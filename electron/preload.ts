@@ -63,6 +63,7 @@ export interface IpcApi {
   onUpdateProgress: (callback: (progress: UpdateProgress) => void) => () => void
   onUpdateDownloaded: (callback: (info: UpdateInfo) => void) => () => void
   onUpdateError: (callback: (err: { message: string }) => void) => () => void
+  onOpenUpdateModal: (callback: () => void) => () => void
 }
 
 export interface UpdateInfo {
@@ -143,6 +144,11 @@ const api: IpcApi = {
     const handler = (_event: any, err: any) => callback(err)
     ipcRenderer.on('updater:error', handler)
     return () => ipcRenderer.removeListener('updater:error', handler)
+  },
+  onOpenUpdateModal: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('open-update-modal', handler)
+    return () => ipcRenderer.removeListener('open-update-modal', handler)
   }
 }
 

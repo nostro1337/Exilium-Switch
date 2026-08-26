@@ -31,9 +31,12 @@ export function App() {
   const [profilesOpen, setProfilesOpen] = useState(false)
   const [updateModalOpen, setUpdateModalOpen] = useState(false)
 
-  // Listen for available updates
+  // Listen for update notification click
   useEffect(() => {
-    const unsub = window.electronAPI?.onUpdateAvailable(() => {
+    const unsub = window.electronAPI?.onOpenUpdateModal?.(() => {
+      setSettingsOpen(false)
+      setLogsOpen(false)
+      setProfilesOpen(false)
       setUpdateModalOpen(true)
     })
     return () => unsub?.()

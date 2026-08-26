@@ -25,6 +25,7 @@ extraResources:
       - "!*.json"
       - "!*.bat"
       - "!*.ps1"
+afterPack: scripts/after-pack.cjs
 win:
   icon: "build/icon.ico"
   target:

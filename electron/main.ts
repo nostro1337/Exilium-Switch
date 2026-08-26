@@ -4,13 +4,42 @@ import path from 'node:path'
 import fs from 'node:fs'
 import http from 'node:http'
 import { fileURLToPath } from 'node:url'
-import { execFile, spawn, ChildProcess } from 'node:child_process'
+import { execFile, execFileSync, spawn, ChildProcess } from 'node:child_process'
 import { promisify } from 'node:util'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const execFileAsync = promisify(execFile)
+
+// Helper: Check if current process has true Windows Administrator privileges
+function isProcessElevated(): boolean {
+  if (process.platform !== 'win32') return true
+  try {
+    execFileSync('net', ['session'], { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// In packaged mode, enforce automatic Administrator elevation without user manual right-clicking
+if (app.isPackaged && !isProcessElevated()) {
+  const exePath = process.execPath
+  const args = process.argv.slice(1).map((a) => `"${a}"`).join(' ')
+  try {
+    spawn('powershell.exe', [
+      '-NoProfile',
+      '-WindowStyle', 'Hidden',
+      '-Command',
+      `Start-Process -FilePath "${exePath}" -ArgumentList '${args}' -Verb RunAs`
+    ], {
+      detached: true,
+      stdio: 'ignore'
+    }).unref()
+  } catch {}
+  app.exit(0)
+}
 
 // Single Instance Lock (Prevents duplicate background processes)
 const gotTheLock = app.requestSingleInstanceLock()
@@ -1632,11 +1661,15 @@ app.whenReady().then(async () => {
   // ============================================================
   initAutoUpdater()
   if (app.isPackaged) {
-    setTimeout(() => {
+    const runBackgroundUpdateCheck = () => {
       autoUpdater.checkForUpdates().catch((err) => {
         addLog(`[Updater] Фоновая проверка обновлений: ${err.message}`, 'warn')
       })
-    }, 6000)
+    }
+    // Initial check after 5 seconds
+    setTimeout(runBackgroundUpdateCheck, 5000)
+    // Frequent background check every 60 seconds (1 minute)
+    setInterval(runBackgroundUpdateCheck, 60 * 1000)
   }
 
   ipcMain.handle('updater:check', async () => {
@@ -1688,6 +1721,21 @@ app.whenReady().then(async () => {
 // ============================================================
 // Auto Updater Core Setup
 // ============================================================
+let lastNotifiedVersion: string | null = null
+
+function getNotificationIconPath(): string {
+  const possiblePaths = [
+    path.join(__dirname, '../build/icon.png'),
+    path.join(process.resourcesPath, 'build/icon.png'),
+    path.join(process.resourcesPath, 'icon.png'),
+    path.join(app.getAppPath(), 'build/icon.png')
+  ]
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) return p
+  }
+  return ''
+}
+
 function initAutoUpdater() {
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
@@ -1714,6 +1762,32 @@ function initAutoUpdater() {
       releaseNotes: info.releaseNotes,
       releaseDate: info.releaseDate
     })
+
+    // Show native Windows notification if not notified for this version yet
+    if (lastNotifiedVersion !== info.version) {
+      lastNotifiedVersion = info.version
+      if (Notification.isSupported()) {
+        try {
+          const icon = getNotificationIconPath()
+          const notification = new Notification({
+            title: 'Доступно обновление Exilium Switch',
+            body: `Вышла новая версия v${info.version}! Нажмите, чтобы открыть окно обновления.`,
+            icon: icon || undefined
+          })
+          notification.on('click', () => {
+            if (mainWindow) {
+              if (mainWindow.isMinimized()) mainWindow.restore()
+              mainWindow.show()
+              mainWindow.focus()
+              mainWindow.webContents.send('open-update-modal')
+            }
+          })
+          notification.show()
+        } catch (err: any) {
+          console.warn('[Updater Notification Error]', err.message)
+        }
+      }
+    }
   })
 
   autoUpdater.on('update-not-available', () => {
