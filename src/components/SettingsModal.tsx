@@ -19,11 +19,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
   })
   const [saving, setSaving] = useState(false)
   const [savedSuccess, setSavedSuccess] = useState(false)
+  const [version, setVersion] = useState('1.3.1')
 
   useEffect(() => {
     if (isOpen) {
       window.electronAPI?.getSettings().then((loaded) => {
         if (loaded) setSettings(loaded)
+      })
+      window.electronAPI?.getAppVersion?.().then((v) => {
+        if (v) setVersion(v)
       })
     }
   }, [isOpen])
@@ -161,7 +165,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
           <div className="pt-2 border-t border-white/5 flex items-center justify-between">
             <div className="flex flex-col">
               <span className="text-[11px] font-medium text-zinc-300">Версия Exilium Switch</span>
-              <span className="text-[10px] text-zinc-500 font-mono">v1.3.1</span>
+              <span className="text-[10px] text-zinc-500 font-mono">v{version}</span>
             </div>
             {onCheckUpdates && (
               <button

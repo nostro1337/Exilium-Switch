@@ -1444,6 +1444,8 @@ app.whenReady().then(async () => {
     }
   })
 
+  ipcMain.handle('get-app-version', () => app.getVersion())
+
   ipcMain.handle('updater:quit-and-install', async () => {
     try {
       addLog('[Updater] Запрос на установку обновления. Подготовка к безопасному перезапуску...', 'info')
@@ -1467,6 +1469,16 @@ app.whenReady().then(async () => {
 function initAutoUpdater() {
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
+
+  try {
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: 'nostro1337',
+      repo: 'Exilium-Switch'
+    })
+  } catch (err: any) {
+    console.warn('[Updater] setFeedURL fallback notice:', err.message)
+  }
 
   autoUpdater.on('checking-for-update', () => {
     addLog('[Updater] Проверка наличия обновлений на GitHub Releases...', 'info')

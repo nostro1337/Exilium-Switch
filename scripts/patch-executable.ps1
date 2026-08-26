@@ -8,8 +8,21 @@ if (-not (Test-Path $rcedit)) {
     if ($found) { $rcedit = $found.FullName }
 }
 
+$pkg = Get-Content (Join-Path $PSScriptRoot "..\package.json") -Raw | ConvertFrom-Json
+$appVersion = $pkg.version
+
+# Ensure app-update.yml exists in resources
+$updateYmlSource = Join-Path $PSScriptRoot "..\build\app-update.yml"
+$updateYmlDest = Join-Path $PSScriptRoot "..\release\win-unpacked\resources\app-update.yml"
+if (Test-Path $updateYmlSource) {
+    $resDir = Split-Path $updateYmlDest -Parent
+    if (-not (Test-Path $resDir)) { New-Item -ItemType Directory -Path $resDir -Force | Out-Null }
+    Copy-Item $updateYmlSource $updateYmlDest -Force
+    Write-Host "Ensured app-update.yml is in $updateYmlDest"
+}
+
 if ((Test-Path $rcedit) -and (Test-Path $exe)) {
-    Write-Host "Patching PE metadata on $exe..."
+    Write-Host "Patching PE metadata on $exe for version $appVersion..."
     & $rcedit $exe `
         --set-icon $icon `
         --set-version-string "FileDescription" "Exilium Switch" `
@@ -18,8 +31,8 @@ if ((Test-Path $rcedit) -and (Test-Path $exe)) {
         --set-version-string "LegalCopyright" "Copyright © 2026 Nostro" `
         --set-version-string "OriginalFilename" "Exilium Switch.exe" `
         --set-version-string "InternalName" "Exilium Switch" `
-        --set-product-version "1.3.0" `
-        --set-file-version "1.3.0"
+        --set-product-version $appVersion `
+        --set-file-version $appVersion
     Write-Host "rcedit completed with code: $LASTEXITCODE"
 } else {
     Write-Host "rcedit ($rcedit) or exe ($exe) not found!"

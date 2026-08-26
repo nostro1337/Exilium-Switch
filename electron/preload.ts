@@ -52,6 +52,7 @@ export interface IpcApi {
   openLogsFolder: () => Promise<void>
 
   // Auto Updater
+  getAppVersion: () => Promise<string>
   checkForUpdates: () => Promise<{ success: boolean; updateAvailable?: boolean; version?: string; error?: string }>
   startUpdateDownload: () => Promise<{ success: boolean; error?: string }>
   quitAndInstallUpdate: () => Promise<void>
@@ -107,6 +108,7 @@ const api: IpcApi = {
   openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
 
   // Auto Updater
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   startUpdateDownload: () => ipcRenderer.invoke('updater:start-download'),
   quitAndInstallUpdate: () => ipcRenderer.invoke('updater:quit-and-install'),

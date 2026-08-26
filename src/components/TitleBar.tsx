@@ -19,6 +19,14 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   logsOpen,
   profilesOpen
 }) => {
+  const [version, setVersion] = React.useState('1.3.1')
+
+  React.useEffect(() => {
+    window.electronAPI?.getAppVersion?.().then((v) => {
+      if (v) setVersion(v)
+    })
+  }, [])
+
   const handleMinimize = () => {
     window.electronAPI?.minimizeWindow()
   }
@@ -49,7 +57,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
             Exilium<span className="text-white font-bold">Switch</span>
           </span>
           <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-zinc-400 border border-white/[0.06]">
-            v1.3
+            v{version}
           </span>
         </div>
       </div>
