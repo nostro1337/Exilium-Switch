@@ -1,48 +1,76 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Layers, Plus, Check, Trash2, X, FileCode, Shield, UploadCloud, Link2, Clipboard } from 'lucide-react'
-import type { ConfigProfile } from '../../electron/preload'
+import {
+  Layers,
+  Check,
+  Trash2,
+  X,
+  FileCode,
+  Shield,
+  UploadCloud,
+  Link2,
+  Clipboard,
+  Home,
+  Briefcase
+} from 'lucide-react'
+import type { ConfigProfile, AppMode } from '../../electron/preload'
 
 interface ProfileSelectorProps {
   isOpen: boolean
   isRunning: boolean
+  currentMode: AppMode
   onClose: () => void
+  onModeChange?: (mode: AppMode) => void
 }
 
 export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
   isOpen,
   isRunning,
-  onClose
+  currentMode,
+  onClose,
+  onModeChange
 }) => {
+  const [selectedMode, setSelectedMode] = useState<AppMode>(currentMode)
   const [profiles, setProfiles] = useState<ConfigProfile[]>([])
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [showLinkInput, setShowLinkInput] = useState(false)
   const [vlessText, setVlessText] = useState('')
 
-  const loadProfiles = async () => {
+  useEffect(() => {
+    setSelectedMode(currentMode)
+  }, [currentMode])
+
+  const loadProfiles = async (mode = selectedMode) => {
     try {
-      const list = await window.electronAPI?.getProfiles()
+      const list = await window.electronAPI?.getProfiles(mode)
       if (list) setProfiles(list)
     } catch {}
   }
 
   useEffect(() => {
     if (isOpen) {
-      loadProfiles()
+      loadProfiles(selectedMode)
       setErrorMsg(null)
     }
-  }, [isOpen])
+  }, [isOpen, selectedMode])
+
+  const handleSwitchTab = (mode: AppMode) => {
+    setSelectedMode(mode)
+    if (!isRunning && onModeChange) {
+      onModeChange(mode)
+    }
+  }
 
   const handleImport = async () => {
     if (isRunning) {
-      setErrorMsg('Отключите Shield перед добавлением нового профиля')
+      setErrorMsg('Отключите туннель перед добавлением нового профиля')
       return
     }
     setLoading(true)
     setErrorMsg(null)
     try {
-      const res = await window.electronAPI?.importProfile()
+      const res = await window.electronAPI?.importProfile(selectedMode)
       if (res && res.success) {
         await loadProfiles()
       } else if (res && res.error && res.error !== 'Импорт отменен') {
@@ -62,7 +90,7 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
 
   const handleDirectPasteAndImport = async () => {
     if (isRunning) {
-      setErrorMsg('Отключите Shield перед добавлением нового профиля')
+      setErrorMsg('Отключите туннель перед добавлением нового профиля')
       return
     }
     setErrorMsg(null)
@@ -74,7 +102,7 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
         setErrorMsg('В буфере обмена нет ссылки vless://. Скопируйте ссылку и нажмите снова.')
         return
       }
-      const res = await window.electronAPI?.importVlessLink(trimmed)
+      const res = await window.electronAPI?.importVlessLink(trimmed, selectedMode)
       if (res && res.success) {
         setVlessText('')
         setShowLinkInput(false)
@@ -91,7 +119,7 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
 
   const handleImportVless = async () => {
     if (isRunning) {
-      setErrorMsg('Отключите Shield перед добавлением нового профиля')
+      setErrorMsg('Отключите туннель перед добавлением нового профиля')
       return
     }
     if (!vlessText.trim()) {
@@ -101,7 +129,7 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
     setLoading(true)
     setErrorMsg(null)
     try {
-      const res = await window.electronAPI?.importVlessLink(vlessText.trim())
+      const res = await window.electronAPI?.importVlessLink(vlessText.trim(), selectedMode)
       if (res && res.success) {
         setVlessText('')
         setShowLinkInput(false)
@@ -116,7 +144,7 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
 
   const handleSelect = async (profileId: string) => {
     if (isRunning) {
-      setErrorMsg('Отключите Shield перед переключением профиля')
+      setErrorMsg('Отключите туннель перед переключением профиля')
       return
     }
     setErrorMsg(null)
@@ -142,6 +170,8 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
 
   if (!isOpen) return null
 
+  const modeLabel = selectedMode === 'office' ? 'Офис' : (selectedMode === 'gaming' ? 'Игры' : 'Дом')
+
   return (
     <AnimatePresence>
       <div 
@@ -160,7 +190,7 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
           <div className="h-12 px-4 border-b border-white/10 flex items-center justify-between bg-[#141418] shrink-0">
             <div className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
               <Layers className="w-4 h-4 text-zinc-300" strokeWidth={2} />
-              <span>Профили конфигураций (.json)</span>
+              <span>Профили ({modeLabel})</span>
             </div>
             <button
               onClick={onClose}
@@ -170,12 +200,43 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
             </button>
           </div>
 
+          {/* Mode Switch Tabs inside modal */}
+          <div className="px-4 pt-3 pb-1 shrink-0">
+            <div className="flex items-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.08] gap-1">
+              <button
+                type="button"
+                onClick={() => handleSwitchTab('home')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-lg text-xs font-medium transition-all ${
+                  selectedMode === 'home'
+                    ? 'bg-white text-black font-semibold shadow-[0_0_10px_rgba(255,255,255,0.25)]'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+                }`}
+              >
+                <Home className="w-3.5 h-3.5" />
+                <span>Дом</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSwitchTab('office')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-lg text-xs font-medium transition-all ${
+                  selectedMode === 'office'
+                    ? 'bg-white text-black font-semibold shadow-[0_0_10px_rgba(255,255,255,0.25)]'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+                }`}
+              >
+                <Briefcase className="w-3.5 h-3.5" />
+                <span>Офис</span>
+              </button>
+            </div>
+          </div>
+
           {/* Body content */}
           <div className="p-4 flex-1 overflow-y-auto space-y-3">
             {isRunning && (
               <div className="p-2.5 rounded-lg bg-amber-950/40 border border-amber-800/40 text-amber-200 text-xs flex items-center gap-2">
                 <Shield className="w-4 h-4 shrink-0 text-amber-400" />
-                <span>VPN активен. Для смены или удаления профилей отключите Resident Shield.</span>
+                <span>Туннель активен. Для смены профиля отключите подключение.</span>
               </div>
             )}
 
@@ -187,14 +248,16 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
 
             {/* Profile Cards */}
             {profiles.length === 0 ? (
-              <div className="py-8 px-4 rounded-xl border border-white/10 bg-white/[0.02] flex flex-col items-center justify-center text-center gap-2.5">
+              <div className="py-7 px-4 rounded-xl border border-white/10 bg-white/[0.02] flex flex-col items-center justify-center text-center gap-2">
                 <div className="p-3 rounded-full bg-white/[0.06] text-zinc-400 border border-white/10">
-                  <UploadCloud className="w-6 h-6 stroke-[1.5]" />
+                  <UploadCloud className="w-5 h-5 stroke-[1.5]" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-zinc-200">Нет добавленных конфигураций</p>
+                  <p className="text-xs font-semibold text-zinc-200">
+                    Нет конфигураций для режима «{modeLabel}»
+                  </p>
                   <p className="text-[11px] text-zinc-500 mt-1 max-w-[240px] leading-relaxed">
-                    Импортируйте ваш <span className="text-zinc-300 font-mono">.json</span> конфиг sing-box для создания профиля
+                    Вставьте VLESS ссылку или импортируйте .json конфиг
                   </p>
                 </div>
               </div>
@@ -260,7 +323,7 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
                 <div className="flex items-center justify-between text-xs text-zinc-200 font-semibold">
                   <div className="flex items-center gap-1.5 text-zinc-200">
                     <Link2 size={14} />
-                    <span>Импорт ссылки VLESS</span>
+                    <span>Конвертер VLESS для «{modeLabel}»</span>
                   </div>
                   <button
                     onClick={() => setShowLinkInput(false)}
@@ -276,6 +339,11 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
                   placeholder="Вставьте ссылку vless://..."
                   className="w-full bg-black/60 border border-white/10 rounded-lg p-2 text-[11px] text-zinc-200 font-mono resize-none focus:outline-none focus:border-white/40"
                 />
+                <div className="text-[10px] text-zinc-500 font-mono">
+                  {selectedMode === 'office'
+                    ? '⚡ Автоматически: upstream DNS контроллера, direct для 192.168.12.0/24 и AnyDesk'
+                    : '⚡ Автоматически: маскировка часового пояса, Real-IP Split DNS'}
+                </div>
                 <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
@@ -300,7 +368,7 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
                       className="px-3.5 py-1.5 rounded-lg bg-white text-black hover:bg-zinc-200 disabled:opacity-40 text-xs font-semibold flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer"
                     >
                       <Check size={13} strokeWidth={2.5} />
-                      <span>{loading ? 'Создание...' : 'Импортировать'}</span>
+                      <span>{loading ? 'Создание...' : `Собрать для «${modeLabel}»`}</span>
                     </button>
                   </div>
                 </div>
@@ -319,7 +387,7 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
                   }`}
                 >
                   <Clipboard size={14} className="text-zinc-200" />
-                  <span>{loading ? 'Импорт...' : 'Вставить VLESS из буфера'}</span>
+                  <span>{loading ? 'Импорт...' : `Вставить VLESS для «${modeLabel}»`}</span>
                 </button>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -357,7 +425,7 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
           {/* Footer note */}
           <div className="p-3 border-t border-white/10 bg-[#0a0a0d] flex items-center justify-between text-[11px] text-zinc-500">
             <span>Конфигураций: {profiles.length}</span>
-            <span className="font-mono text-[10px]">by Nostro</span>
+            <span className="font-mono text-[10px]">Режим: {modeLabel}</span>
           </div>
         </motion.div>
       </div>

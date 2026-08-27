@@ -6,7 +6,8 @@ import { LogConsole } from './components/LogConsole'
 import { SettingsModal } from './components/SettingsModal'
 import { ProfileSelector } from './components/ProfileSelector'
 import { UpdateModal } from './components/UpdateModal'
-import type { VpnStatus, AppSettings } from '../electron/preload'
+import { SystemDiagnosisModal } from './components/SystemDiagnosisModal'
+import type { VpnStatus, AppSettings, AppMode } from '../electron/preload'
 
 export function App() {
   const [status, setStatus] = useState<VpnStatus>({
@@ -14,7 +15,8 @@ export function App() {
     currentZone: 'Tomsk Standard Time',
     lfsvcStatus: 'Stopped',
     uptimeSeconds: 0,
-    activeProfileName: 'Основной профиль'
+    activeProfileName: 'Основной профиль',
+    appMode: 'home'
   })
 
   const [settings, setSettings] = useState<AppSettings>({
@@ -23,13 +25,18 @@ export function App() {
     autoStart: false,
     minimizeToTray: true,
     startMinimized: false,
-    activeProfileId: 'default'
+    activeProfileId: undefined,
+    appMode: 'home',
+    activeProfileIdByMode: {}
   })
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [logsOpen, setLogsOpen] = useState(false)
   const [profilesOpen, setProfilesOpen] = useState(false)
   const [updateModalOpen, setUpdateModalOpen] = useState(false)
+  const [diagnosisOpen, setDiagnosisOpen] = useState(false)
+
+  const currentMode: AppMode = (status.appMode || settings.appMode || 'home') as AppMode
 
   // Listen for update notification click
   useEffect(() => {
@@ -37,6 +44,7 @@ export function App() {
       setSettingsOpen(false)
       setLogsOpen(false)
       setProfilesOpen(false)
+      setDiagnosisOpen(false)
       setUpdateModalOpen(true)
     })
     return () => unsub?.()
@@ -86,6 +94,16 @@ export function App() {
     }
   }
 
+  const handleSelectMode = async (mode: AppMode) => {
+    if (status.isRunning) return
+    const res = await window.electronAPI?.setAppMode(mode)
+    if (res && res.success) {
+      setSettings((prev) => ({ ...prev, appMode: mode }))
+      const s = await window.electronAPI?.getStatus()
+      if (s) setStatus(s)
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen w-screen bg-[#09090b] text-white relative overflow-hidden select-none">
       {/* Titlebar */}
@@ -98,8 +116,8 @@ export function App() {
           setSettingsOpen(false)
           setLogsOpen(false)
           setProfilesOpen(false)
+          setDiagnosisOpen(false)
           setUpdateModalOpen(true)
-          window.electronAPI?.checkForUpdates()
         }}
         logsOpen={logsOpen}
         profilesOpen={profilesOpen}
@@ -107,16 +125,19 @@ export function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col justify-between py-2 z-10 overflow-y-auto">
-        {/* Central Master Switch */}
+        {/* Central Master Switch & Mode Selector */}
         <MasterSwitch
           isRunning={status.isRunning}
           uptimeSeconds={status.uptimeSeconds}
           activeProfileName={status.activeProfileName}
+          currentMode={currentMode}
           onToggle={handleToggleVpn}
+          onSelectMode={handleSelectMode}
+          onOpenDiagnosis={() => setDiagnosisOpen(true)}
           onOpenProfiles={() => setProfilesOpen(true)}
         />
 
-        {/* Resident Mode Cards & Amsterdam Latency */}
+        {/* Resident Mode Cards & Status */}
         <ResidentStatusCard
           isRunning={status.isRunning}
           currentZone={status.currentZone}
@@ -125,8 +146,8 @@ export function App() {
           lfsvcStatus={status.lfsvcStatus}
         />
 
-        {/* Footer info badge with shimmering animated glow */}
-        <footer className="px-4 py-2.5 mt-auto text-center flex items-center justify-center">
+        {/* Footer info badge */}
+        <footer className="px-4 py-2 mt-auto text-center flex items-center justify-center">
           <p className="text-[11px] tracking-widest uppercase font-mono font-semibold nostro-shimmer cursor-default transition-transform duration-300 hover:scale-[1.02]">
             Exilium Resident Shield By Nostro
           </p>
@@ -140,12 +161,22 @@ export function App() {
       <ProfileSelector
         isOpen={profilesOpen}
         isRunning={status.isRunning}
+        currentMode={currentMode}
+        onModeChange={handleSelectMode}
         onClose={() => {
           setProfilesOpen(false)
           window.electronAPI?.getStatus().then((s) => {
             if (s) setStatus(s)
           })
         }}
+      />
+
+      {/* System Auto-Diagnosis Modal */}
+      <SystemDiagnosisModal
+        isOpen={diagnosisOpen}
+        currentMode={currentMode}
+        onClose={() => setDiagnosisOpen(false)}
+        onApplyMode={handleSelectMode}
       />
 
       {/* Settings Modal */}
@@ -160,13 +191,13 @@ export function App() {
         onCheckUpdates={() => {
           setSettingsOpen(false)
           setUpdateModalOpen(true)
-          window.electronAPI?.checkForUpdates()
         }}
       />
 
-      {/* Auto Update Modal */}
+      {/* Update Center Modal */}
       <UpdateModal
         isOpen={updateModalOpen}
+        currentVersion="1.5.0"
         onClose={() => setUpdateModalOpen(false)}
       />
     </div>

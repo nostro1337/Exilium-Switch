@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+export type AppMode = 'home' | 'office' | 'gaming'
+
 export interface AppSettings {
   realZone: string
   fakeZone: string
@@ -7,6 +9,8 @@ export interface AppSettings {
   minimizeToTray: boolean
   startMinimized: boolean
   activeProfileId?: string
+  appMode?: AppMode
+  activeProfileIdByMode?: Record<string, string>
 }
 
 export interface ConfigProfile {
@@ -17,6 +21,24 @@ export interface ConfigProfile {
   createdAt: number
   isDefault?: boolean
   isActive?: boolean
+  mode?: AppMode
+}
+
+export interface AuditDiagnosisResult {
+  hostname: string
+  currentUser: string
+  isAdministrator: boolean
+  domainJoined: boolean
+  domainName: string
+  domainControllers: Array<{ name: string; ip: string }>
+  dnsServers: string[]
+  dnsSuffixes: string[]
+  defaultGateway: string
+  ipAddress: string
+  vpsReachable: boolean
+  vpsLatencyMs: number
+  recommendedMode: AppMode
+  recommendationReason: string
 }
 
 export interface VpnStatus {
@@ -27,6 +49,7 @@ export interface VpnStatus {
   uptimeSeconds: number
   startTime?: number
   activeProfileName?: string
+  appMode?: AppMode
 }
 
 export interface IpcApi {
@@ -34,6 +57,8 @@ export interface IpcApi {
   toggleVpn: (enable?: boolean) => Promise<{ success: boolean; isRunning: boolean; error?: string }>
   getSettings: () => Promise<AppSettings>
   saveSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>
+  setAppMode: (mode: AppMode) => Promise<{ success: boolean; mode: AppMode }>
+  runSystemAudit: () => Promise<AuditDiagnosisResult>
   testLatency: () => Promise<{ latencyMs: number | null; error?: string }>
   minimizeWindow: () => void
   closeWindow: () => void
@@ -42,9 +67,9 @@ export interface IpcApi {
   getRecentLogs: () => Promise<Array<{ time: string; text: string; type: 'info' | 'warn' | 'error' | 'success' | 'dev' }>>
   
   // Profile Management
-  getProfiles: () => Promise<ConfigProfile[]>
-  importProfile: () => Promise<{ success: boolean; profile?: ConfigProfile; error?: string }>
-  importVlessLink: (vlessUrl: string) => Promise<{ success: boolean; profile?: ConfigProfile; error?: string }>
+  getProfiles: (mode?: AppMode) => Promise<ConfigProfile[]>
+  importProfile: (mode?: AppMode) => Promise<{ success: boolean; profile?: ConfigProfile; error?: string }>
+  importVlessLink: (vlessUrl: string, mode?: AppMode) => Promise<{ success: boolean; profile?: ConfigProfile; error?: string }>
   selectProfile: (profileId: string) => Promise<{ success: boolean; error?: string }>
   deleteProfile: (profileId: string) => Promise<{ success: boolean; error?: string }>
   
@@ -84,6 +109,8 @@ const api: IpcApi = {
   toggleVpn: (enable) => ipcRenderer.invoke('toggle-vpn', enable),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+  setAppMode: (mode) => ipcRenderer.invoke('set-app-mode', mode),
+  runSystemAudit: () => ipcRenderer.invoke('run-system-audit'),
   testLatency: () => ipcRenderer.invoke('test-latency'),
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   closeWindow: () => ipcRenderer.send('window-close'),
@@ -100,9 +127,9 @@ const api: IpcApi = {
   getRecentLogs: () => ipcRenderer.invoke('get-recent-logs'),
   
   // Profiles
-  getProfiles: () => ipcRenderer.invoke('get-profiles'),
-  importProfile: () => ipcRenderer.invoke('import-profile'),
-  importVlessLink: (vlessUrl) => ipcRenderer.invoke('import-vless-link', vlessUrl),
+  getProfiles: (mode) => ipcRenderer.invoke('get-profiles', mode),
+  importProfile: (mode) => ipcRenderer.invoke('import-profile', mode),
+  importVlessLink: (vlessUrl, mode) => ipcRenderer.invoke('import-vless-link', vlessUrl, mode),
   selectProfile: (profileId) => ipcRenderer.invoke('select-profile', profileId),
   deleteProfile: (profileId) => ipcRenderer.invoke('delete-profile', profileId),
   

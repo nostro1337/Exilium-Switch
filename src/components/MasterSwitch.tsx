@@ -1,12 +1,28 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Power, ShieldCheck, ShieldAlert, Loader2, Clock, Layers, Plus } from 'lucide-react'
+import {
+  Power,
+  ShieldCheck,
+  ShieldAlert,
+  Loader2,
+  Clock,
+  Layers,
+  Plus,
+  Home,
+  Briefcase,
+  Gamepad2,
+  ScanSearch
+} from 'lucide-react'
+import type { AppMode } from '../../electron/preload'
 
 interface MasterSwitchProps {
   isRunning: boolean
   uptimeSeconds: number
   activeProfileName?: string
+  currentMode: AppMode
   onToggle: () => Promise<void>
+  onSelectMode: (mode: AppMode) => void
+  onOpenDiagnosis: () => void
   onOpenProfiles?: () => void
 }
 
@@ -14,7 +30,10 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
   isRunning,
   uptimeSeconds,
   activeProfileName,
+  currentMode,
   onToggle,
+  onSelectMode,
+  onOpenDiagnosis,
   onOpenProfiles
 }) => {
   const [loading, setLoading] = useState(false)
@@ -66,7 +85,74 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center my-3 relative select-none">
+    <div className="flex flex-col items-center justify-center my-2 relative select-none">
+      {/* 3-Position Mode Switcher + Auto-Diagnosis Button */}
+      <div className="flex items-center justify-between w-full max-w-[340px] px-2 mb-3.5 gap-2">
+        {/* Mode Segmented Controls */}
+        <div className="flex items-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.08] gap-1 flex-1">
+          {/* Дом */}
+          <button
+            type="button"
+            onClick={() => onSelectMode('home')}
+            disabled={isRunning}
+            title={isRunning ? 'Отключите туннель для смены режима' : 'Режим «Дом» — полная маскировка под Амстердам'}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-lg text-xs font-medium transition-all ${
+              isRunning ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
+            } ${
+              currentMode === 'home'
+                ? 'bg-white text-black font-semibold shadow-[0_0_12px_rgba(255,255,255,0.3)]'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+            }`}
+          >
+            <Home className="w-3.5 h-3.5" />
+            <span>Дом</span>
+          </button>
+
+          {/* Офис */}
+          <button
+            type="button"
+            onClick={() => onSelectMode('office')}
+            disabled={isRunning}
+            title={isRunning ? 'Отключите туннель для смены режима' : 'Режим «Офис» — безопасный сплит-туннель для корпоративной сети'}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-lg text-xs font-medium transition-all ${
+              isRunning ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
+            } ${
+              currentMode === 'office'
+                ? 'bg-white text-black font-semibold shadow-[0_0_12px_rgba(255,255,255,0.3)]'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+            }`}
+          >
+            <Briefcase className="w-3.5 h-3.5" />
+            <span>Офис</span>
+          </button>
+
+          {/* Игры (disabled) */}
+          <div className="relative flex-1 group">
+            <button
+              type="button"
+              disabled
+              className="w-full flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-lg text-xs font-medium text-zinc-600 opacity-40 cursor-not-allowed"
+            >
+              <Gamepad2 className="w-3.5 h-3.5" />
+              <span>Игры</span>
+            </button>
+            <div className="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover:flex px-2 py-0.5 bg-zinc-900 border border-white/15 text-[9px] text-zinc-400 rounded whitespace-nowrap z-50 pointer-events-none shadow-lg">
+              В разработке
+            </div>
+          </div>
+        </div>
+
+        {/* Auto-Diagnosis Quick Button */}
+        <button
+          type="button"
+          onClick={onOpenDiagnosis}
+          title="Авто-диагностика устройства и выбор режима"
+          className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white border border-white/[0.08] hover:border-white/20 transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 shadow-sm"
+        >
+          <ScanSearch className="w-4 h-4" />
+        </button>
+      </div>
+
       {/* Outer SVG Track & Active Rotating Ring */}
       <div className="relative flex items-center justify-center">
         <svg className="w-48 h-48 absolute pointer-events-none" viewBox="0 0 200 200">
@@ -141,9 +227,9 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
         </motion.button>
       </div>
 
-      {/* Ample Spacing (mt-7) & Status Badges */}
-      <div className="mt-7 flex flex-col items-center gap-2">
-        {/* Resident Shield Main Badge */}
+      {/* Spacing & Status Badges */}
+      <div className="mt-6 flex flex-col items-center gap-2">
+        {/* Shield Main Badge */}
         <div className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium tracking-wide border transition-all duration-300 ${
           isRunning
             ? 'bg-white/10 text-white border-white/30 shadow-[0_0_15px_rgba(255,255,255,0.2)]'
@@ -152,12 +238,12 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
           {isRunning ? (
             <>
               <ShieldCheck className="w-3.5 h-3.5 text-white" strokeWidth={2} />
-              <span>RESIDENT SHIELD: АКТИВЕН</span>
+              <span>{currentMode === 'office' ? 'OFFICE TUNNEL: АКТИВЕН' : 'RESIDENT SHIELD: АКТИВЕН'}</span>
             </>
           ) : (
             <>
               <ShieldAlert className="w-3.5 h-3.5 text-zinc-500" strokeWidth={2} />
-              <span>РЕЖИМ ОЖИДАНИЯ</span>
+              <span>{currentMode === 'office' ? 'РЕЖИМ ОФИС (ОЖИДАНИЕ)' : 'РЕЖИМ ДОМ (ОЖИДАНИЕ)'}</span>
             </>
           )}
         </div>
@@ -167,7 +253,7 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
           <button
             onClick={onOpenProfiles}
             disabled={isRunning}
-            title={isRunning ? 'Отключите VPN для смены профиля' : 'Нажмите для смены профиля (.json)'}
+            title={isRunning ? 'Отключите туннель для смены профиля' : 'Нажмите для смены профиля'}
             className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono border transition-all ${
               isRunning
                 ? 'bg-white/[0.04] text-zinc-400 border-white/[0.06] cursor-default'
@@ -180,11 +266,11 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
         ) : (
           <button
             onClick={onOpenProfiles}
-            title="Нажмите чтобы добавить ваш .json конфиг"
+            title="Нажмите чтобы добавить конфигурацию"
             className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono border border-dashed border-white/20 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white transition-all cursor-pointer"
           >
             <Plus className="w-3 h-3 text-zinc-400" />
-            <span>Добавить .json конфиг</span>
+            <span>Добавить конфиг ({currentMode === 'office' ? 'Офис' : 'Дом'})</span>
           </button>
         )}
 

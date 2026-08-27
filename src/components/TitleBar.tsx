@@ -21,7 +21,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   logsOpen,
   profilesOpen
 }) => {
-  const [version, setVersion] = React.useState('1.4.2')
+  const [version, setVersion] = React.useState('1.5.0')
 
   React.useEffect(() => {
     window.electronAPI?.getAppVersion?.().then((v) => {
@@ -61,8 +61,8 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           <button
             type="button"
             onClick={onCheckUpdates}
-            title="Проверить наличие обновлений"
-            className="no-drag non-app-drag-region text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.12] text-zinc-400 hover:text-white border border-white/[0.08] hover:border-white/20 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+            title="Центр обновлений"
+            className="app-no-drag text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.14] text-zinc-400 hover:text-white border border-white/[0.08] hover:border-white/25 transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
           >
             <span>v{version}</span>
           </button>

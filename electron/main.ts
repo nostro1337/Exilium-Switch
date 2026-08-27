@@ -3,6 +3,8 @@ import { autoUpdater } from 'electron-updater'
 import path from 'node:path'
 import fs from 'node:fs'
 import http from 'node:http'
+import net from 'node:net'
+import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { execFile, execFileSync, spawn, ChildProcess } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -38,6 +40,8 @@ process.on('unhandledRejection', (reason) => {
 // ============================================================
 // Type Definitions
 // ============================================================
+export type AppMode = 'home' | 'office' | 'gaming'
+
 export interface AppSettings {
   realZone: string
   fakeZone: string
@@ -45,6 +49,8 @@ export interface AppSettings {
   minimizeToTray: boolean
   startMinimized: boolean
   activeProfileId?: string | null
+  appMode?: AppMode
+  activeProfileIdByMode?: Record<string, string>
 }
 
 export interface ConfigProfile {
@@ -54,6 +60,24 @@ export interface ConfigProfile {
   path: string
   createdAt: number
   isActive?: boolean
+  mode?: AppMode
+}
+
+export interface AuditDiagnosisResult {
+  hostname: string
+  currentUser: string
+  isAdministrator: boolean
+  domainJoined: boolean
+  domainName: string
+  domainControllers: Array<{ name: string; ip: string }>
+  dnsServers: string[]
+  dnsSuffixes: string[]
+  defaultGateway: string
+  ipAddress: string
+  vpsReachable: boolean
+  vpsLatencyMs: number
+  recommendedMode: AppMode
+  recommendationReason: string
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -62,7 +86,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoStart: false,
   minimizeToTray: true,
   startMinimized: false,
-  activeProfileId: null
+  activeProfileId: null,
+  appMode: 'home',
+  activeProfileIdByMode: {}
 }
 
 // ============================================================
@@ -392,7 +418,7 @@ const DISCORD_DOMAINS = [
   "discord.media", "discordcdn.com", "discordstatus.com"
 ]
 
-function convertVlessToSingBoxConfig(vlessUrl: string): { config: any; name: string } {
+function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'home'): { config: any; name: string } {
   let parsed: URL
   try {
     parsed = new URL(vlessUrl.trim())
@@ -416,7 +442,9 @@ function convertVlessToSingBoxConfig(vlessUrl: string): { config: any; name: str
 
   const port = parsed.port ? parseInt(parsed.port, 10) : 443
   const rawName = parsed.hash ? decodeURIComponent(parsed.hash.replace(/^#/, '')) : `${server}:${port}`
-  const name = rawName.trim() || `${server}:${port}`
+  const baseName = rawName.trim() || `${server}:${port}`
+  const isOffice = mode === 'office'
+  const name = isOffice ? `${baseName}_OFFICE` : (mode === 'gaming' ? `${baseName}_GAME` : `${baseName}_HOME`)
 
   const params = parsed.searchParams
   const flow = params.get('flow') || 'xtls-rprx-vision'
@@ -435,19 +463,77 @@ function convertVlessToSingBoxConfig(vlessUrl: string): { config: any; name: str
     ? { ip_cidr: [`${server}/32`], outbound: "direct" }
     : { domain: [server], outbound: "direct" }
 
+  const dnsServers: any[] = []
+  const dnsRules: any[] = []
+
+  if (isOffice) {
+    dnsServers.push(
+      { tag: "dns-corp-primary", type: "udp", server: "192.168.12.223", server_port: 53, detour: "direct" },
+      { tag: "dns-corp-backup", type: "udp", server: "192.168.12.222", server_port: 53, detour: "direct" }
+    )
+    dnsRules.push({
+      domain_suffix: ["aviabasa.local", "local"],
+      server: "dns-corp-primary"
+    })
+  }
+
+  dnsServers.push(
+    { tag: "dns-direct", type: "udp", server: "77.88.8.8", server_port: 53, detour: "direct" },
+    { tag: "dns-direct-backup", type: "udp", server: "77.88.8.1", server_port: 53, detour: "direct" },
+    { tag: "dns-remote", type: "udp", server: "8.8.8.8", server_port: 53, detour: "proxy-out" },
+    { tag: "dns-remote-backup", type: "udp", server: "1.1.1.1", server_port: 53, detour: "proxy-out" }
+  )
+
+  dnsRules.push(
+    { domain_suffix: RUSSIAN_AND_CIS_DOMAINS, server: "dns-direct" },
+    { domain_suffix: DISCORD_DOMAINS, server: "dns-remote" }
+  )
+
+  const routeRules: any[] = [
+    { action: "sniff" },
+    { protocol: "dns", action: "hijack-dns" },
+    { port: 53, action: "hijack-dns" },
+    { ip_version: 6, action: "reject" },
+    routeDirectRule
+  ]
+
+  if (isOffice) {
+    routeRules.push(
+      {
+        ip_cidr: [
+          "192.168.12.0/24",
+          "192.168.12.200/32",
+          "192.168.12.222/32",
+          "192.168.12.223/32"
+        ],
+        outbound: "direct"
+      },
+      {
+        domain_suffix: ["aviabasa.local", "local"],
+        outbound: "direct"
+      },
+      {
+        port: [7070],
+        outbound: "direct"
+      }
+    )
+  }
+
+  routeRules.push(
+    { ip_is_private: true, outbound: "direct" },
+    { domain_suffix: RUSSIAN_AND_CIS_DOMAINS, outbound: "direct" },
+    { domain_suffix: DISCORD_DOMAINS, outbound: "proxy-out" },
+    {
+      ip_cidr: ["149.154.160.0/20", "91.108.4.0/22", "91.108.8.0/22", "91.108.56.0/22"],
+      outbound: "proxy-out"
+    }
+  )
+
   const config: any = {
     log: { level: "info", timestamp: true },
     dns: {
-      servers: [
-        { tag: "dns-direct", type: "udp", server: "77.88.8.8", server_port: 53, detour: "direct" },
-        { tag: "dns-direct-backup", type: "udp", server: "77.88.8.1", server_port: 53, detour: "direct" },
-        { tag: "dns-remote", type: "udp", server: "8.8.8.8", server_port: 53, detour: "proxy-out" },
-        { tag: "dns-remote-backup", type: "udp", server: "1.1.1.1", server_port: 53, detour: "proxy-out" }
-      ],
-      rules: [
-        { domain_suffix: RUSSIAN_AND_CIS_DOMAINS, server: "dns-direct" },
-        { domain_suffix: DISCORD_DOMAINS, server: "dns-remote" }
-      ],
+      servers: dnsServers,
+      rules: dnsRules,
       final: "dns-remote",
       strategy: "ipv4_only",
       cache_capacity: 10000
@@ -488,20 +574,7 @@ function convertVlessToSingBoxConfig(vlessUrl: string): { config: any; name: str
     route: {
       auto_detect_interface: true,
       default_domain_resolver: "dns-direct",
-      rules: [
-        { action: "sniff" },
-        { protocol: "dns", action: "hijack-dns" },
-        { port: 53, action: "hijack-dns" },
-        { ip_version: 6, action: "reject" },
-        routeDirectRule,
-        { ip_is_private: true, outbound: "direct" },
-        { domain_suffix: RUSSIAN_AND_CIS_DOMAINS, outbound: "direct" },
-        { domain_suffix: DISCORD_DOMAINS, outbound: "proxy-out" },
-        {
-          ip_cidr: ["149.154.160.0/20", "91.108.4.0/22", "91.108.8.0/22", "91.108.56.0/22"],
-          outbound: "proxy-out"
-        }
-      ],
+      rules: routeRules,
       final: "proxy-out"
     }
   }
@@ -521,7 +594,7 @@ function getProfileMetaPath(): string {
   return path.join(getProfilesDir(), 'profiles_meta.json')
 }
 
-function loadProfileMeta(): Record<string, { name?: string }> {
+function loadProfileMeta(): Record<string, { name?: string; mode?: AppMode }> {
   try {
     const metaPath = getProfileMetaPath()
     if (fs.existsSync(metaPath)) {
@@ -531,7 +604,7 @@ function loadProfileMeta(): Record<string, { name?: string }> {
   return {}
 }
 
-function saveProfileMeta(id: string, meta: { name?: string }) {
+function saveProfileMeta(id: string, meta: { name?: string; mode?: AppMode }) {
   try {
     const current = loadProfileMeta()
     current[id] = { ...(current[id] || {}), ...meta }
@@ -559,11 +632,37 @@ function purgeLegacyDefaultProfile() {
   } catch {}
 }
 
-function getProfilesList(): ConfigProfile[] {
+function seedOfficeProfileIfNeeded(profilesDir: string) {
+  try {
+    const files = fs.readdirSync(profilesDir).filter(f => f.endsWith('.json') && f !== 'profiles_meta.json')
+    const hasOffice = files.some(f => f.toLowerCase().includes('office') || f.toLowerCase().includes('work') || f.toLowerCase().includes('aviabasa'))
+    if (!hasOffice) {
+      const candidates = [
+        path.join(app.getAppPath(), 'Configs', 'work_aviabasa.json'),
+        path.join(process.resourcesPath, 'Configs', 'work_aviabasa.json'),
+        path.resolve('Configs', 'work_aviabasa.json'),
+        path.join(__dirname, '..', 'Configs', 'work_aviabasa.json')
+      ]
+      for (const cand of candidates) {
+        if (fs.existsSync(cand)) {
+          const dest = path.join(profilesDir, 'work_aviabasa.json')
+          fs.copyFileSync(cand, dest)
+          saveProfileMeta('work_aviabasa', { name: 'Корпоративный (Aviabasa)', mode: 'office' })
+          break
+        }
+      }
+    }
+  } catch {}
+}
+
+function getProfilesList(filterMode?: AppMode): ConfigProfile[] {
   const profilesDir = getProfilesDir()
   const settings = loadSettings()
-  const activeId = settings.activeProfileId
+  const currentMode = filterMode || settings.appMode || 'home'
+  const activeId = settings.activeProfileIdByMode?.[currentMode] || settings.activeProfileId
   const meta = loadProfileMeta()
+
+  seedOfficeProfileIfNeeded(profilesDir)
 
   const files = fs.readdirSync(profilesDir).filter(f => f.endsWith('.json') && f !== 'default.json' && f !== 'profiles_meta.json')
   const profiles: ConfigProfile[] = []
@@ -572,6 +671,7 @@ function getProfilesList(): ConfigProfile[] {
     const fullPath = path.join(profilesDir, file)
     const id = path.basename(file, '.json')
     let name = meta[id]?.name || id.replace(/[-_]/g, ' ')
+    let mode: AppMode = meta[id]?.mode || (id.toLowerCase().includes('office') || id.toLowerCase().includes('work') || id.toLowerCase().includes('aviabasa') ? 'office' : 'home')
     
     let createdAt = Date.now()
     try {
@@ -584,22 +684,132 @@ function getProfilesList(): ConfigProfile[] {
       filename: file,
       path: fullPath,
       createdAt,
-      isActive: id === activeId
+      isActive: id === activeId,
+      mode
     })
   }
 
-  if (!profiles.some(p => p.isActive) && profiles.length > 0) {
-    profiles[0].isActive = true
-    saveSettings({ activeProfileId: profiles[0].id })
+  const filtered = filterMode ? profiles.filter(p => p.mode === filterMode) : profiles
+
+  if (filtered.length > 0 && !filtered.some(p => p.isActive)) {
+    filtered[0].isActive = true
+    const updatedMap = { ...(settings.activeProfileIdByMode || {}), [currentMode]: filtered[0].id }
+    saveSettings({ activeProfileId: filtered[0].id, activeProfileIdByMode: updatedMap })
   }
 
-  return profiles.sort((a, b) => b.createdAt - a.createdAt)
+  return filtered.sort((a, b) => b.createdAt - a.createdAt)
 }
 
 function getActiveProfile(): ConfigProfile | null {
-  const list = getProfilesList()
-  if (list.length === 0) return null
-  return list.find(p => p.isActive) || list[0]
+  const settings = loadSettings()
+  const currentMode = settings.appMode || 'home'
+  const list = getProfilesList(currentMode)
+  if (list.length === 0) {
+    const all = getProfilesList()
+    return all.length > 0 ? all[0] : null
+  }
+  const modeActiveId = settings.activeProfileIdByMode?.[currentMode] || settings.activeProfileId
+  return list.find(p => p.id === modeActiveId) || list[0]
+}
+
+async function performSystemAudit(): Promise<AuditDiagnosisResult> {
+  const result: AuditDiagnosisResult = {
+    hostname: os.hostname(),
+    currentUser: process.env.USERNAME ? `${process.env.USERDOMAIN || ''}\\${process.env.USERNAME}` : 'User',
+    isAdministrator: false,
+    domainJoined: false,
+    domainName: 'WORKGROUP',
+    domainControllers: [],
+    dnsServers: [],
+    dnsSuffixes: [],
+    defaultGateway: '',
+    ipAddress: '',
+    vpsReachable: false,
+    vpsLatencyMs: -1,
+    recommendedMode: 'home',
+    recommendationReason: ''
+  }
+
+  // 1. Test connection to VPS (89.124.94.246:443)
+  try {
+    const startTime = Date.now()
+    await new Promise<void>((resolve, reject) => {
+      const socket = net.createConnection({ host: '89.124.94.246', port: 443, timeout: 2500 }, () => {
+        result.vpsReachable = true
+        result.vpsLatencyMs = Date.now() - startTime
+        socket.end()
+        resolve()
+      })
+      socket.on('timeout', () => { socket.destroy(); reject(new Error('timeout')) })
+      socket.on('error', (err) => { reject(err) })
+    })
+  } catch {}
+
+  // 2. Query PowerShell for network and domain
+  try {
+    const psScript = `
+      $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue;
+      $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent();
+      $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator);
+      $routes = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue;
+      $dns = Get-DnsClientServerAddress -AddressFamily 2 -ErrorAction SilentlyContinue;
+      $ip = Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias 'Ethernet*' -ErrorAction SilentlyContinue;
+      if (-not $ip) { $ip = Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias 'Wi-Fi*' -ErrorAction SilentlyContinue }
+      $suffixes = (Get-DnsClientGlobalSetting -ErrorAction SilentlyContinue).SuffixSearchList;
+
+      $dcList = @();
+      if ($cs.PartOfDomain) {
+        try {
+          $dom = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain();
+          foreach ($dc in $dom.DomainControllers) {
+            $dcIp = '';
+            try { $dcIp = ([System.Net.Dns]::GetHostAddresses($dc.Name) | Where-Object { $_.AddressFamily -eq 'InterNetwork' } | Select-Object -First 1).IPAddressToString } catch {}
+            $dcList += @{ Name = $dc.Name; IP = $dcIp };
+          }
+        } catch {}
+      }
+
+      [PSCustomObject]@{
+        Hostname = $env:COMPUTERNAME;
+        CurrentUser = "$env:USERDOMAIN\\$env:USERNAME";
+        IsAdmin = [bool]$isAdmin;
+        DomainJoined = [bool]$cs.PartOfDomain;
+        DomainName = if ($cs.PartOfDomain) { $cs.Domain } else { $cs.Workgroup };
+        DomainControllers = $dcList;
+        DefaultGateway = if ($routes) { ($routes | Select-Object -First 1).NextHop } else { '' };
+        IpAddress = if ($ip) { ($ip | Select-Object -First 1).IPAddress } else { '' };
+        DnsServers = @($dns.ServerAddresses | Where-Object { $_ -and $_ -ne '127.0.0.1' } | Select-Object -Unique);
+        DnsSuffixes = @($suffixes | Where-Object { $_ });
+      } | ConvertTo-Json -Compress
+    `
+    const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-Command', psScript])
+    if (stdout.trim()) {
+      const parsed = JSON.parse(stdout.trim())
+      result.hostname = parsed.Hostname || result.hostname
+      result.currentUser = parsed.CurrentUser || result.currentUser
+      result.isAdministrator = Boolean(parsed.IsAdmin)
+      result.domainJoined = Boolean(parsed.DomainJoined)
+      result.domainName = parsed.DomainName || result.domainName
+      result.defaultGateway = parsed.DefaultGateway || ''
+      result.ipAddress = parsed.IpAddress || ''
+      result.dnsServers = Array.isArray(parsed.DnsServers) ? parsed.DnsServers : (parsed.DnsServers ? [parsed.DnsServers] : [])
+      result.dnsSuffixes = Array.isArray(parsed.DnsSuffixes) ? parsed.DnsSuffixes : (parsed.DnsSuffixes ? [parsed.DnsSuffixes] : [])
+      result.domainControllers = Array.isArray(parsed.DomainControllers) ? parsed.DomainControllers.map((d: any) => ({ name: d.Name || '', ip: d.IP || '' })) : []
+    }
+  } catch (err: any) {
+    addLog(`Диагностика системы (предупреждение): ${err.message}`, 'warn')
+  }
+
+  // 3. Verdict
+  if (result.domainJoined || result.domainControllers.length > 0 || (result.dnsSuffixes.length > 0 && !result.dnsSuffixes.includes('localdomain'))) {
+    result.recommendedMode = 'office'
+    result.recommendationReason = `Обнаружен корпоративный домен (${result.domainName}). Включен режим «Офис», чтобы защитить Active Directory и связь с серверами компании.`
+  } else {
+    result.recommendedMode = 'home'
+    result.recommendationReason = `Корпоративный домен не обнаружен. Рекомендуется режим «Дом» для максимальной анонимности Resident Shield.`
+  }
+
+  return result
 }
 
 // ============================================================
@@ -869,11 +1079,14 @@ async function startLfsvc(): Promise<boolean> {
 // ============================================================
 // Full Status Aggregator
 // ============================================================
+// Full Status Aggregator
+// ============================================================
 async function getFullStatus() {
   const isRunning = await checkIsProcessRunning()
   const currentZone = await getSystemTimezone()
   const lfsvcStatus = await getLfsvcStatus()
   const activeProfile = getActiveProfile()
+  const settings = loadSettings()
 
   if (isRunning && !appStartTime) {
     appStartTime = Date.now()
@@ -889,7 +1102,8 @@ async function getFullStatus() {
     lfsvcStatus,
     uptimeSeconds,
     startTime: appStartTime || undefined,
-    activeProfileName: activeProfile?.name || undefined
+    activeProfileName: activeProfile?.name || undefined,
+    appMode: settings.appMode || 'home'
   }
 }
 
@@ -1050,12 +1264,14 @@ async function enableResidentMode(): Promise<{ success: boolean; error?: string 
   isToggling = true
 
   try {
-    addLog('━━━ АКТИВАЦИЯ RESIDENT SHIELD (Amsterdam Mode) ━━━', 'info')
+    const settings = loadSettings()
+    const isOffice = settings.appMode === 'office'
+    addLog(`━━━ АКТИВАЦИЯ ТУННЕЛЯ [${isOffice ? 'РЕЖИМ ОФИС' : 'RESIDENT SHIELD (Amsterdam)'}] ━━━`, 'info')
 
     const activeProfile = getActiveProfile()
     if (!activeProfile) {
       addLog('Отсутствует профиль конфигурации! Добавьте .json конфиг перед запуском.', 'error')
-      showNotification('Exilium Switch', 'Пожалуйста, добавьте .json конфигурацию перед запуском Shield.')
+      showNotification('Exilium Switch', 'Пожалуйста, добавьте .json конфигурацию перед запуском.')
       return { success: false, error: 'Сначала добавьте .json конфиг' }
     }
 
@@ -1067,39 +1283,52 @@ async function enableResidentMode(): Promise<{ success: boolean; error?: string 
       return { success: true }
     }
 
-    const settings = loadSettings()
+    if (!isOffice) {
+      // Step 1: Spoof Timezone to W. Europe Standard Time (Amsterdam)
+      addLog(`[1/4] Маскировка часового пояса → ${settings.fakeZone}`, 'info')
+      await setSystemTimezone(settings.fakeZone)
 
-    // Step 1: Spoof Timezone to W. Europe Standard Time (Amsterdam)
-    addLog(`[1/4] Маскировка часового пояса → ${settings.fakeZone}`, 'info')
-    await setSystemTimezone(settings.fakeZone)
+      // Step 2: Location Guard
+      addLog('[2/4] Блокировка службы геолокации Windows...', 'info')
+      await stopLfsvc()
 
-    // Step 2: Location Guard
-    addLog('[2/4] Блокировка службы геолокации Windows...', 'info')
-    await stopLfsvc()
+      // Step 3: Anti-Leak Lockdown (SMHNR, Loopback DNS, IPv6 Isolation)
+      addLog('[3/4] Применение анти-утечки DNS и IPv6...', 'info')
+      await applyAntiLeakLockdown()
 
-    // Step 3: Anti-Leak Lockdown (SMHNR, Loopback DNS, IPv6 Isolation)
-    addLog('[3/4] Применение анти-утечки DNS и IPv6...', 'info')
-    await applyAntiLeakLockdown()
+      // Step 4: Launch sing-box Core
+      addLog(`[4/4] Запуск ядра sing-box [${activeProfile.name}]...`, 'info')
+    } else {
+      addLog(`[1/1] Запуск ядра sing-box в режиме «Офис» [${activeProfile.name}] (сетевые адаптеры ОС не изменяются)...`, 'info')
+    }
 
-    // Step 4: Launch sing-box Core
-    addLog(`[4/4] Запуск ядра sing-box [${activeProfile.name}]...`, 'info')
     const started = await startSingBox()
 
     if (started) {
       appStartTime = Date.now()
-      addLog('✓ RESIDENT SHIELD АКТИВЕН (Amsterdam / NL Resident Masking Active)', 'success')
-      showNotification(
-        'Exilium Switch — Защита активна',
-        `Resident Shield включен [${activeProfile.name}]. Часовой пояс, DNS и геолокация защищены.`
-      )
+      if (isOffice) {
+        addLog('✓ OFFICE TUNNEL АКТИВЕН (Корпоративный сплит-туннель активен)', 'success')
+        showNotification(
+          'Exilium Switch — Режим Офис',
+          `Офисный сплит-туннель включен [${activeProfile.name}]. Домен и локальная сеть защищены.`
+        )
+      } else {
+        addLog('✓ RESIDENT SHIELD АКТИВЕН (Amsterdam / NL Resident Masking Active)', 'success')
+        showNotification(
+          'Exilium Switch — Защита активна',
+          `Resident Shield включен [${activeProfile.name}]. Часовой пояс, DNS и геолокация защищены.`
+        )
+      }
       await updateStatusBroadcast()
       return { success: true }
     } else {
-      addLog('✗ Ошибка старта sing-box — откат системных настроек...', 'error')
-      await setSystemTimezone(settings.realZone)
-      await startLfsvc()
-      await restoreRegularNetwork()
-      showNotification('Exilium Switch — Ошибка старта', 'Не удалось запустить sing-box. Настройки сети восстановлены.', true)
+      addLog('✗ Ошибка старта sing-box — откат...', 'error')
+      if (!isOffice) {
+        await setSystemTimezone(settings.realZone)
+        await startLfsvc()
+        await restoreRegularNetwork()
+      }
+      showNotification('Exilium Switch — Ошибка старта', 'Не удалось запустить sing-box.', true)
       await updateStatusBroadcast()
       return { success: false, error: 'sing-box start failed' }
     }
@@ -1113,31 +1342,34 @@ async function disableResidentMode(): Promise<{ success: boolean; error?: string
   isToggling = true
 
   try {
-    addLog('━━━ ДЕАКТИВАЦИЯ RESIDENT SHIELD ━━━', 'info')
-
     const settings = loadSettings()
+    const isOffice = settings.appMode === 'office'
+    addLog(`━━━ ДЕАКТИВАЦИЯ [${isOffice ? 'РЕЖИМ ОФИС' : 'RESIDENT SHIELD'}] ━━━`, 'info')
 
     // Step 1: Stop sing-box
-    addLog('[1/4] Остановка ядра sing-box...', 'info')
+    addLog('[1/1] Остановка ядра sing-box...', 'info')
     await stopSingBox()
 
-    // Step 2: Restore Real Timezone
-    addLog(`[2/4] Восстановление часового пояса → ${settings.realZone}`, 'info')
-    await setSystemTimezone(settings.realZone)
+    if (!isOffice) {
+      // Step 2: Restore Real Timezone
+      addLog(`[2/4] Восстановление часового пояса → ${settings.realZone}`, 'info')
+      await setSystemTimezone(settings.realZone)
 
-    // Step 3: Restore Location Service
-    addLog('[3/4] Восстановление службы геолокации Windows...', 'info')
-    await startLfsvc()
+      // Step 3: Restore Location Service
+      addLog('[3/4] Восстановление службы геолокации Windows...', 'info')
+      await startLfsvc()
 
-    // Step 4: Restore Physical DNS & IPv6
-    addLog('[4/4] Восстановление стандартного DNS и сетевых интерфейсов...', 'info')
-    await restoreRegularNetwork()
+      // Step 4: Restore Physical DNS & IPv6
+      addLog('[4/4] Восстановление стандартного DNS и сетевых интерфейсов...', 'info')
+      await restoreRegularNetwork()
+    } else {
+      addLog('✓ Офисный режим отключен. Параметры сетевых карт сохранены без изменений.', 'success')
+    }
 
     appStartTime = null
-    addLog('✓ Resident Mode отключен. Стандартный системный трафик и DNS восстановлены.', 'success')
     showNotification(
-      'Exilium Switch — Защита отключена',
-      'Resident Shield выключен. Стандартный системный трафик и DNS восстановлены.'
+      'Exilium Switch — Отключено',
+      isOffice ? 'Туннель отключен. Сетевые настройки не изменялись.' : 'Resident Shield выключен. Настройки сети восстановлены.'
     )
     await updateStatusBroadcast()
     return { success: true }
@@ -1457,10 +1689,36 @@ app.whenReady().then(async () => {
     } catch {}
   })
 
-  // IPC: Profile Management
-  ipcMain.handle('get-profiles', () => getProfilesList())
+  // IPC: Mode Switching
+  ipcMain.handle('set-app-mode', async (_event, mode: AppMode) => {
+    try {
+      const isRunning = await checkIsProcessRunning()
+      if (isRunning) {
+        return { success: false, error: 'Сначала отключите туннель перед сменой режима' }
+      }
+      saveSettings({ appMode: mode })
+      const active = getActiveProfile()
+      const modeName = mode === 'office' ? 'ОФИС' : (mode === 'gaming' ? 'ИГРЫ' : 'ДОМ')
+      addLog(`Режим переключен: [${modeName}], активный профиль: "${active?.name || 'не выбран'}"`, 'info')
+      await updateStatusBroadcast()
+      return { success: true, mode }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
 
-  ipcMain.handle('import-profile', async () => {
+  // IPC: System Audit
+  ipcMain.handle('run-system-audit', async () => {
+    addLog('Запуск экспресс-диагностики системы и сети...', 'info')
+    const diagnosis = await performSystemAudit()
+    addLog(`Диагностика завершена: ${diagnosis.recommendationReason}`, 'success')
+    return diagnosis
+  })
+
+  // IPC: Profile Management
+  ipcMain.handle('get-profiles', (_event, mode?: AppMode) => getProfilesList(mode))
+
+  ipcMain.handle('import-profile', async (_event, targetMode?: AppMode) => {
     try {
       if (!mainWindow) return { success: false, error: 'Окно недоступно' }
       const res = await dialog.showOpenDialog(mainWindow, {
@@ -1484,6 +1742,8 @@ app.whenReady().then(async () => {
         return { success: false, error: 'Файл не является валидным JSON' }
       }
 
+      const settings = loadSettings()
+      const mode = targetMode || settings.appMode || 'home'
       const originalName = path.basename(sourcePath, '.json')
       const safeId = originalName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase() + '-' + Date.now().toString(36)
       const profilesDir = getProfilesDir()
@@ -1491,7 +1751,9 @@ app.whenReady().then(async () => {
 
       fs.writeFileSync(destPath, rawContent, 'utf-8')
 
-      saveSettings({ activeProfileId: safeId })
+      saveProfileMeta(safeId, { name: originalName, mode })
+      const updatedMap = { ...(settings.activeProfileIdByMode || {}), [mode]: safeId }
+      saveSettings({ activeProfileId: safeId, activeProfileIdByMode: updatedMap })
 
       const newProfile: ConfigProfile = {
         id: safeId,
@@ -1499,10 +1761,11 @@ app.whenReady().then(async () => {
         filename: `${safeId}.json`,
         path: destPath,
         createdAt: Date.now(),
-        isActive: true
+        isActive: true,
+        mode
       }
 
-      addLog(`Новый профиль "${originalName}" успешно импортирован!`, 'success')
+      addLog(`Новый профиль "${originalName}" [${mode === 'office' ? 'Офис' : 'Дом'}] успешно импортирован!`, 'success')
       await updateStatusBroadcast()
       return { success: true, profile: newProfile }
     } catch (err: any) {
@@ -1511,14 +1774,16 @@ app.whenReady().then(async () => {
     }
   })
 
-  ipcMain.handle('import-vless-link', async (_event, rawLink: string) => {
+  ipcMain.handle('import-vless-link', async (_event, rawLink: string, targetMode?: AppMode) => {
     try {
       const link = (rawLink || '').trim()
       if (!link) {
         return { success: false, error: 'Ссылка пустая' }
       }
 
-      const { config, name } = convertVlessToSingBoxConfig(link)
+      const settings = loadSettings()
+      const mode = targetMode || settings.appMode || 'home'
+      const { config, name } = convertVlessToSingBoxConfig(link, mode)
       const rawContent = JSON.stringify(config, null, 2)
 
       const safeId = name.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase().slice(0, 32) + '-' + Date.now().toString(36)
@@ -1539,8 +1804,9 @@ app.whenReady().then(async () => {
         }
       }
 
-      saveSettings({ activeProfileId: safeId })
-      saveProfileMeta(safeId, { name })
+      saveProfileMeta(safeId, { name, mode })
+      const updatedMap = { ...(settings.activeProfileIdByMode || {}), [mode]: safeId }
+      saveSettings({ activeProfileId: safeId, activeProfileIdByMode: updatedMap })
 
       const newProfile: ConfigProfile = {
         id: safeId,
@@ -1548,10 +1814,11 @@ app.whenReady().then(async () => {
         filename: `${safeId}.json`,
         path: destPath,
         createdAt: Date.now(),
-        isActive: true
+        isActive: true,
+        mode
       }
 
-      addLog(`Профиль "${name}" успешно создан из VLESS-ссылки!`, 'success')
+      addLog(`Профиль "${name}" успешно создан из VLESS-ссылки [${mode === 'office' ? 'Офис' : 'Дом'}]!`, 'success')
       await updateStatusBroadcast()
       return { success: true, profile: newProfile }
     } catch (err: any) {
@@ -1564,7 +1831,7 @@ app.whenReady().then(async () => {
     try {
       const isRunning = await checkIsProcessRunning()
       if (isRunning) {
-        return { success: false, error: 'Нельзя сменить профиль при активном VPN. Сначала отключите Shield.' }
+        return { success: false, error: 'Нельзя сменить профиль при активном туннеле. Сначала отключите его.' }
       }
 
       const profilesDir = getProfilesDir()
@@ -1573,7 +1840,12 @@ app.whenReady().then(async () => {
         return { success: false, error: 'Профиль не найден' }
       }
 
-      saveSettings({ activeProfileId: profileId })
+      const settings = loadSettings()
+      const meta = loadProfileMeta()
+      const profileMode = meta[profileId]?.mode || settings.appMode || 'home'
+      const updatedMap = { ...(settings.activeProfileIdByMode || {}), [profileMode]: profileId }
+
+      saveSettings({ activeProfileId: profileId, activeProfileIdByMode: updatedMap })
       const active = getActiveProfile()
       addLog(`Активный профиль переключен на: "${active?.name || profileId}"`, 'success')
       await updateStatusBroadcast()

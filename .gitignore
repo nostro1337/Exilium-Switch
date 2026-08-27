@@ -22,6 +22,7 @@ profiles/
 *.log
 logs/
 *.txt
+WorkPC_Audit_*
 !README.md
 
 # OS & Editor Files
