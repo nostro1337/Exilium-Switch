@@ -37,9 +37,36 @@ interface ChangelogItem {
 
 const CHANGELOG_DATA: ChangelogItem[] = [
   {
-    version: '1.5.0',
+    version: '1.5.1',
     date: '27.08.2026',
     isCurrent: true,
+    highlights: [
+      {
+        icon: 'shield',
+        title: 'Ультимативный обход корпоративных DPI (Enterprise Stealth)',
+        desc: 'Поддержка транспорта VLESS WebSocket + TLS с валидным сертификатом Let\'s Encrypt для обхода глубокой сигнатурной инспекции NGFW (UserGate, FortiGate, CheckPoint).'
+      },
+      {
+        icon: 'briefcase',
+        title: 'Синхронизация статусов режима «Офис»',
+        desc: 'Плашки резидента («Часовой пояс» и «Служба гео») теперь явно отображают сохранение параметров системы без тревожных индикаторов.'
+      },
+      {
+        icon: 'sparkles',
+        title: 'Улучшенная эргономика главного экрана',
+        desc: 'Увеличены отступы между селектором режимов и мастер-кнопкой подключения, исправлено позиционирование всплывающих подсказок.'
+      },
+      {
+        icon: 'zap',
+        title: 'Универсальный VLESS-парсер',
+        desc: 'Парсер ссылок теперь нативно поддерживает как Reality (TCP/XTLS), так и чистый TLS/WSS с любыми путями и портами.'
+      }
+    ]
+  },
+  {
+    version: '1.5.0',
+    date: '27.08.2026',
+    isCurrent: false,
     highlights: [
       {
         icon: 'briefcase',

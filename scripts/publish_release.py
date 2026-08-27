@@ -21,4 +21,4 @@ if res_pub.returncode != 0:
     print("Publish failed!")
     sys.exit(res_pub.returncode)
 
-print("SUCCESS: RELEASE v1.5.0 PUBLISHED TO GITHUB!")
+print("SUCCESS: RELEASE v1.5.1 PUBLISHED TO GITHUB!")

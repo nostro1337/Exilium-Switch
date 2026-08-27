@@ -447,15 +447,18 @@ function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'home'): 
   const name = isOffice ? `${baseName}_OFFICE` : (mode === 'gaming' ? `${baseName}_GAME` : `${baseName}_HOME`)
 
   const params = parsed.searchParams
-  const flow = params.get('flow') || 'xtls-rprx-vision'
+  const type = params.get('type') || 'tcp'
   const security = params.get('security') || 'reality'
+  const flow = params.get('flow') || (security === 'reality' ? 'xtls-rprx-vision' : '')
   const pbk = params.get('pbk') || ''
   const sid = params.get('sid') || ''
-  const sni = params.get('sni') || 'dl.google.com'
+  const rawSni = params.get('sni')
+  const sni = rawSni || server
   const fp = params.get('fp') || 'chrome'
+  const wsPath = params.get('path') || '/office-ws'
 
-  if (security !== 'reality') {
-    throw new Error(`Тип безопасности "${security}" не поддерживается (требуется Reality)`)
+  if (security !== 'reality' && security !== 'tls' && security !== 'none') {
+    throw new Error(`Тип безопасности "${security}" не поддерживается (требуется Reality или TLS)`)
   }
 
   const isIpAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(server)
@@ -529,12 +532,48 @@ function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'home'): 
     }
   )
 
+  const proxyOutbound: any = {
+    type: "vless",
+    tag: "proxy-out",
+    server: server,
+    server_port: port,
+    uuid: uuid,
+    domain_strategy: "ipv4_only",
+    domain_resolver: "dns-direct",
+    tcp_fast_open: !isOffice
+  }
+
+  if (flow) {
+    proxyOutbound.flow = flow
+  }
+
+  if (type === 'ws') {
+    proxyOutbound.transport = {
+      type: "ws",
+      path: wsPath
+    }
+  }
+
+  if (security === 'reality') {
+    proxyOutbound.tls = {
+      enabled: true,
+      server_name: sni,
+      utls: { enabled: true, fingerprint: fp },
+      reality: { enabled: true, public_key: pbk, short_id: sid }
+    }
+  } else if (security === 'tls') {
+    proxyOutbound.tls = {
+      enabled: true,
+      server_name: sni
+    }
+  }
+
   const config: any = {
     log: { level: "info", timestamp: true },
     dns: {
       servers: dnsServers,
       rules: dnsRules,
-      final: "dns-remote",
+      final: isOffice ? "dns-direct" : "dns-remote",
       strategy: "ipv4_only",
       cache_capacity: 10000
     },
@@ -543,32 +582,16 @@ function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'home'): 
         type: "tun",
         tag: "tun-in",
         interface_name: "singbox-tun0",
-        address: ["172.19.0.1/30", "fd00::1/126"],
+        address: isOffice ? ["172.19.0.1/30"] : ["172.19.0.1/30", "fd00::1/126"],
         mtu: 1400,
         auto_route: true,
-        strict_route: true,
+        strict_route: !isOffice,
         endpoint_independent_nat: true,
         stack: "mixed"
       }
     ],
     outbounds: [
-      {
-        type: "vless",
-        tag: "proxy-out",
-        server: server,
-        server_port: port,
-        uuid: uuid,
-        flow: flow,
-        domain_strategy: "ipv4_only",
-        domain_resolver: "dns-direct",
-        tls: {
-          enabled: true,
-          server_name: sni,
-          utls: { enabled: true, fingerprint: fp },
-          reality: { enabled: true, public_key: pbk, short_id: sid }
-        },
-        tcp_fast_open: true
-      },
+      proxyOutbound,
       { type: "direct", tag: "direct", domain_resolver: "dns-direct" }
     ],
     route: {

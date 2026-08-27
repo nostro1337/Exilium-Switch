@@ -21,7 +21,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   logsOpen,
   profilesOpen
 }) => {
-  const [version, setVersion] = React.useState('1.5.0')
+  const [version, setVersion] = React.useState('1.5.1')
 
   React.useEffect(() => {
     window.electronAPI?.getAppVersion?.().then((v) => {

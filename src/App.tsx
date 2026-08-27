@@ -144,6 +144,7 @@ export function App() {
           fakeZone={settings.fakeZone}
           realZone={settings.realZone}
           lfsvcStatus={status.lfsvcStatus}
+          currentMode={currentMode}
         />
 
         {/* Footer info badge */}
@@ -163,12 +164,7 @@ export function App() {
         isRunning={status.isRunning}
         currentMode={currentMode}
         onModeChange={handleSelectMode}
-        onClose={() => {
-          setProfilesOpen(false)
-          window.electronAPI?.getStatus().then((s) => {
-            if (s) setStatus(s)
-          })
-        }}
+        onClose={() => setProfilesOpen(false)}
       />
 
       {/* System Auto-Diagnosis Modal */}
@@ -197,7 +193,7 @@ export function App() {
       {/* Update Center Modal */}
       <UpdateModal
         isOpen={updateModalOpen}
-        currentVersion="1.5.0"
+        currentVersion="1.5.1"
         onClose={() => setUpdateModalOpen(false)}
       />
     </div>

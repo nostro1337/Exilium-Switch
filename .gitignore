@@ -23,6 +23,7 @@ profiles/
 logs/
 *.txt
 WorkPC_Audit_*
+OfficeTest/
 !README.md
 
 # OS & Editor Files

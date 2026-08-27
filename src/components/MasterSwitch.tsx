@@ -85,9 +85,9 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center my-2 relative select-none">
+    <div className="flex flex-col items-center justify-center pt-1 pb-2 relative select-none">
       {/* 3-Position Mode Switcher + Auto-Diagnosis Button */}
-      <div className="flex items-center justify-between w-full max-w-[340px] px-2 mb-3.5 gap-2">
+      <div className="flex items-center justify-between w-full max-w-[340px] px-2 mt-2.5 mb-6 gap-2">
         {/* Mode Segmented Controls */}
         <div className="flex items-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.08] gap-1 flex-1">
           {/* Дом */}
@@ -136,7 +136,7 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
               <Gamepad2 className="w-3.5 h-3.5" />
               <span>Игры</span>
             </button>
-            <div className="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover:flex px-2 py-0.5 bg-zinc-900 border border-white/15 text-[9px] text-zinc-400 rounded whitespace-nowrap z-50 pointer-events-none shadow-lg">
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:flex px-2 py-0.5 bg-zinc-900 border border-white/15 text-[9px] text-zinc-400 rounded whitespace-nowrap z-50 pointer-events-none shadow-lg">
               В разработке
             </div>
           </div>

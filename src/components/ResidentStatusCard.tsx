@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Globe, MapPinOff, Activity, RefreshCw, Radio } from 'lucide-react'
+import type { AppMode } from '../../electron/preload'
 
 interface ResidentStatusCardProps {
   isRunning: boolean
@@ -7,6 +8,7 @@ interface ResidentStatusCardProps {
   fakeZone: string
   realZone: string
   lfsvcStatus: string
+  currentMode?: AppMode
 }
 
 export const ResidentStatusCard: React.FC<ResidentStatusCardProps> = ({
@@ -14,7 +16,8 @@ export const ResidentStatusCard: React.FC<ResidentStatusCardProps> = ({
   currentZone,
   fakeZone,
   realZone,
-  lfsvcStatus
+  lfsvcStatus,
+  currentMode = 'home'
 }) => {
   const [latency, setLatency] = useState<number | null>(null)
   const [testingLatency, setTestingLatency] = useState(false)
@@ -30,6 +33,7 @@ export const ResidentStatusCard: React.FC<ResidentStatusCardProps> = ({
     }
   }
 
+  const isOffice = currentMode === 'office'
   const isFakeZone = currentZone.toLowerCase().includes('europe') || currentZone === fakeZone
   const isLocationBlocked = lfsvcStatus.toLowerCase().includes('stop') || lfsvcStatus === 'NotFound'
 
@@ -43,9 +47,11 @@ export const ResidentStatusCard: React.FC<ResidentStatusCardProps> = ({
             <span>Часовой пояс</span>
           </div>
           <span className={`w-2 h-2 rounded-full transition-all duration-300 ${
-            isRunning && isFakeZone 
-              ? 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]' 
-              : 'bg-zinc-600'
+            isOffice
+              ? (isRunning ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-zinc-600')
+              : (isRunning && isFakeZone 
+                  ? 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]' 
+                  : 'bg-zinc-600')
           }`} />
         </div>
 
@@ -53,8 +59,10 @@ export const ResidentStatusCard: React.FC<ResidentStatusCardProps> = ({
           <p className="text-xs font-semibold text-zinc-100 truncate" title={currentZone}>
             {currentZone || 'Tomsk Standard Time'}
           </p>
-          <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
-            {isRunning ? `Целевой: ${fakeZone}` : `Реальный: ${realZone}`}
+          <p className="text-[10px] text-zinc-500 font-mono mt-0.5 truncate">
+            {isOffice
+              ? (isRunning ? 'В режиме «Офис» часовой пояс сохранен' : 'Режим «Офис»: без подмены времени')
+              : (isRunning ? `Целевой: ${fakeZone}` : `Реальный: ${realZone}`)}
           </p>
         </div>
       </div>
@@ -67,24 +75,30 @@ export const ResidentStatusCard: React.FC<ResidentStatusCardProps> = ({
             <span>Служба гео (lfsvc)</span>
           </div>
           <span className={`w-2 h-2 rounded-full transition-all duration-300 ${
-            isRunning && isLocationBlocked 
-              ? 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]' 
-              : isRunning
-              ? 'bg-amber-500/80 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
-              : 'bg-zinc-600'
+            isOffice
+              ? (isRunning ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-zinc-600')
+              : (isRunning && isLocationBlocked 
+                  ? 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]' 
+                  : isRunning
+                  ? 'bg-amber-500/80 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
+                  : 'bg-zinc-600')
           }`} />
         </div>
 
         <div className="mt-2.5">
           <p className="text-xs font-semibold text-zinc-100">
-            {isRunning 
-              ? (isLocationBlocked ? 'Заблокирована (Safe)' : 'Активна (Не отключена)')
-              : (isLocationBlocked ? 'Отключена (Windows)' : 'Активна (Windows)')}
+            {isOffice
+              ? (isRunning ? 'Штатная работа (Офис)' : 'Штатная работа (Windows)')
+              : (isRunning 
+                  ? (isLocationBlocked ? 'Заблокирована (Safe)' : 'Активна (Не отключена)')
+                  : (isLocationBlocked ? 'Отключена (Windows)' : 'Активна (Windows)'))}
           </p>
-          <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
-            {isRunning 
-              ? (isLocationBlocked ? 'Защита от утечки координат' : 'Предупреждение: служба работает')
-              : 'Стандартный режим гео'}
+          <p className="text-[10px] text-zinc-500 font-mono mt-0.5 truncate">
+            {isOffice
+              ? (isRunning ? 'В режиме «Офис» служба гео не изменяется' : 'Режим «Офис»: без блокировки служб')
+              : (isRunning 
+                  ? (isLocationBlocked ? 'Защита от утечки координат' : 'Предупреждение: служба работает')
+                  : 'Стандартный режим гео')}
           </p>
         </div>
       </div>
