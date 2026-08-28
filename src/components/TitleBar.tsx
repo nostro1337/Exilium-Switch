@@ -22,10 +22,14 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   profilesOpen
 }) => {
   const [version, setVersion] = React.useState('1.5.1')
+  const [isDev, setIsDev] = React.useState(false)
 
   React.useEffect(() => {
     window.electronAPI?.getAppVersion?.().then((v) => {
       if (v) setVersion(v)
+    })
+    window.electronAPI?.isDevBuild?.().then((dev) => {
+      setIsDev(Boolean(dev))
     })
   }, [])
 
@@ -66,6 +70,11 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           >
             <span>v{version}</span>
           </button>
+          {isDev && (
+            <span className="app-no-drag text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 tracking-wider shadow-sm select-none">
+              DEV BUILD
+            </span>
+          )}
         </div>
       </div>
 

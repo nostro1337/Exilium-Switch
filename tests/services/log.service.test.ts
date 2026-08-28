@@ -70,4 +70,11 @@ describe('LogService Ring Buffer & Parser', () => {
 
     expect(() => logService.openLogsFolder()).not.toThrow()
   })
+
+  it('should initialize live session file and write headers properly', () => {
+    const sessionFile = logService.initSessionFile()
+    expect(sessionFile).toBeDefined()
+    expect(typeof sessionFile).toBe('string')
+    expect(sessionFile.length).toBeGreaterThan(0)
+  })
 })

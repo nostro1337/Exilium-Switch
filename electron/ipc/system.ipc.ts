@@ -3,6 +3,7 @@ import { IPC_CHANNELS } from '../../shared/ipc-channels'
 import { AuditService } from '../services/audit.service'
 import { NetworkService } from '../services/network.service'
 import { LogService } from '../services/log.service'
+import { isDevBuild } from '../utils/paths'
 
 export function registerSystemIpc(): void {
   const auditService = AuditService.getInstance()
@@ -23,5 +24,9 @@ export function registerSystemIpc(): void {
       logService.addLog('Пинг: превышен таймаут ответа', 'warn')
     }
     return res
+  })
+
+  ipcMain.handle(IPC_CHANNELS.IS_DEV_BUILD, () => {
+    return isDevBuild()
   })
 }

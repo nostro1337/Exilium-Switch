@@ -78,7 +78,7 @@ describe('IPC Handlers Execution Suite', () => {
     expect(updated.autoStart).toBe(true)
   })
 
-  it('should execute System handlers (RUN_SYSTEM_AUDIT, TEST_LATENCY)', async () => {
+  it('should execute System handlers (RUN_SYSTEM_AUDIT, TEST_LATENCY, IS_DEV_BUILD)', async () => {
     expect(handlers[IPC_CHANNELS.RUN_SYSTEM_AUDIT]).toBeDefined()
     const audit = await handlers[IPC_CHANNELS.RUN_SYSTEM_AUDIT]()
     expect(audit).toBeDefined()
@@ -86,6 +86,10 @@ describe('IPC Handlers Execution Suite', () => {
     expect(handlers[IPC_CHANNELS.TEST_LATENCY]).toBeDefined()
     const latency = await handlers[IPC_CHANNELS.TEST_LATENCY]()
     expect(latency).toBeDefined()
+
+    expect(handlers[IPC_CHANNELS.IS_DEV_BUILD]).toBeDefined()
+    const isDev = await handlers[IPC_CHANNELS.IS_DEV_BUILD]()
+    expect(typeof isDev).toBe('boolean')
   }, 20000)
 
   it('should execute Log handlers (GET_RECENT_LOGS, OPEN_LOGS_FOLDER)', async () => {

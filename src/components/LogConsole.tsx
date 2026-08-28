@@ -18,11 +18,15 @@ export const LogConsole: React.FC<LogConsoleProps> = ({ isOpen, onClose }) => {
   const [copied, setCopied] = useState(false)
   const [exported, setExported] = useState(false)
   const [filter, setFilter] = useState('')
+  const [isDev, setIsDev] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     window.electronAPI?.getRecentLogs().then((recent) => {
       if (recent) setLogs(recent)
+    })
+    window.electronAPI?.isDevBuild?.().then((dev) => {
+      setIsDev(Boolean(dev))
     })
 
     const unsubscribe = window.electronAPI?.onLog((log) => {
@@ -80,9 +84,14 @@ export const LogConsole: React.FC<LogConsoleProps> = ({ isOpen, onClose }) => {
       {/* Console Header Bar */}
       <div className="h-11 px-3 border-b border-white/10 flex items-center justify-between bg-[#131317] shrink-0 select-none gap-3">
         {/* Left: Title & Badge */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <Terminal className="w-3.5 h-3.5 text-zinc-300" strokeWidth={2} />
-          <span className="text-xs font-semibold text-zinc-100">Консоль логов</span>
+          <span className="text-xs font-semibold text-zinc-100">Логи</span>
+          {isDev && (
+            <span className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+              DEV
+            </span>
+          )}
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-zinc-300 font-mono font-medium border border-white/5">
             {logs.length}
           </span>

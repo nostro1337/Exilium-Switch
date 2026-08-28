@@ -2,7 +2,7 @@ import { app, BrowserWindow, Notification } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { LogService } from './log.service'
 import { SingBoxService } from './singbox.service'
-import { ensureCachedIcons } from '../utils/paths'
+import { ensureCachedIcons, isDevBuild } from '../utils/paths'
 import { IPC_CHANNELS } from '../../shared/ipc-channels'
 
 export class UpdaterService {
@@ -114,15 +114,17 @@ export class UpdaterService {
       })
     })
 
-    // Start background check in packaged mode
-    if (app.isPackaged) {
+    // Start background check only in packaged Production Stable mode
+    if (app.isPackaged && !isDevBuild()) {
       const runCheck = () => {
-        autoUpdater.checkForUpdates().catch((err) => {
-          logService.addLog(`[Updater] Фоновая проверка обновлений: ${err.message}`, 'warn')
+        autoUpdater.checkForUpdates().catch(() => {
+          // Handled in autoUpdater 'error' event without duplicate logging
         })
       }
-      setTimeout(runCheck, 5000)
-      setInterval(runCheck, 60 * 1000)
+      setTimeout(runCheck, 8000)
+      setInterval(runCheck, 30 * 60 * 1000) // Every 30 minutes
+    } else if (isDevBuild()) {
+      logService.addLog('[Updater] Автоматическая проверка обновлений отключена для DEV-билда.', 'info')
     }
   }
 
@@ -130,7 +132,7 @@ export class UpdaterService {
     const logService = LogService.getInstance()
     try {
       if (app.isPackaged) {
-        logService.addLog('[Updater] Ручной запуск проверки обновлений...', 'info')
+        logService.addLog('[Updater] Запрос проверки обновлений на GitHub Releases...', 'info')
         const result = await autoUpdater.checkForUpdates()
         return { success: true, updateAvailable: !!result?.updateInfo, version: result?.updateInfo?.version }
       } else {

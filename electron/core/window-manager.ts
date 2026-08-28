@@ -84,6 +84,13 @@ export class WindowManager {
       }
     })
 
+    this.mainWindow.once('ready-to-show', () => {
+      if (!startHidden && this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.show()
+        this.mainWindow.focus()
+      }
+    })
+
     const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
     if (isDev && process.env.VITE_DEV_SERVER_URL) {
@@ -118,7 +125,9 @@ export class WindowManager {
       if (!this.mainWindow.isVisible()) this.mainWindow.show()
       this.mainWindow.focus()
     } else {
-      this.createWindow()
+      const win = this.createWindow()
+      win.show()
+      win.focus()
     }
   }
 }

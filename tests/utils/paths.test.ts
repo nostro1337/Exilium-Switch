@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import {
+  isDevBuild,
   getRealExePath,
   getAppDataDir,
   getProfilesDir,
@@ -8,6 +9,11 @@ import {
 } from '../../electron/utils/paths'
 
 describe('Path Utilities & Asset Discovery', () => {
+  it('should detect dev environment correctly', () => {
+    const isDev = isDevBuild()
+    expect(typeof isDev).toBe('boolean')
+  })
+
   it('should return valid real executable path', () => {
     const exePath = getRealExePath()
     expect(typeof exePath).toBe('string')

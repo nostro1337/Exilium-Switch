@@ -19,6 +19,7 @@ export const IPC_CHANNELS = {
   // Audit & Telemetry
   RUN_SYSTEM_AUDIT: 'run-system-audit',
   TEST_LATENCY: 'test-latency',
+  IS_DEV_BUILD: 'is-dev-build',
 
   // Logs
   SING_BOX_LOG: 'sing-box-log',

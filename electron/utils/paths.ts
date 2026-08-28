@@ -2,6 +2,17 @@ import { app } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 
+export function isDevBuild(): boolean {
+  if (process.env.EXILIUM_DEV_BUILD === 'true') return true
+  if (process.env.NODE_ENV === 'development') return true
+  try {
+    if (app && !app.isPackaged) return true
+  } catch {}
+  const exec = (process.execPath || '').toLowerCase()
+  const cwd = (process.cwd() || '').toLowerCase()
+  return exec.includes('devbuild') || cwd.includes('devbuild')
+}
+
 export function getRealExePath(): string {
   if (process.env.PORTABLE_EXECUTABLE_FILE && fs.existsSync(process.env.PORTABLE_EXECUTABLE_FILE)) {
     return process.env.PORTABLE_EXECUTABLE_FILE
@@ -10,12 +21,22 @@ export function getRealExePath(): string {
 }
 
 export function getAppDataDir(): string {
+  const isDev = isDevBuild()
+  const folderName = isDev ? 'ExiliumSwitch-Dev' : 'ExiliumSwitch'
   try {
     if (app && typeof app.getPath === 'function') {
-      return app.getPath('userData')
+      const dir = app.getPath('userData')
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+      return dir
     }
   } catch {}
-  return path.join(process.env.APPDATA || process.env.USERPROFILE || '.', 'ExiliumSwitch')
+  const fallback = path.join(process.env.APPDATA || process.env.USERPROFILE || '.', folderName)
+  if (!fs.existsSync(fallback)) {
+    fs.mkdirSync(fallback, { recursive: true })
+  }
+  return fallback
 }
 
 export function getProfilesDir(): string {

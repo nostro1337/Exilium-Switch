@@ -48,6 +48,9 @@ export interface IpcApi {
   exportLogs: () => Promise<{ success: boolean; savedPath?: string; error?: string }>
   openLogsFolder: () => Promise<void>
 
+  // System & Environment
+  isDevBuild: () => Promise<boolean>
+
   // Auto Updater
   getAppVersion: () => Promise<string>
   checkForUpdates: () => Promise<{ success: boolean; updateAvailable?: boolean; version?: string; error?: string }>
@@ -63,6 +66,7 @@ export interface IpcApi {
 }
 
 const api: IpcApi = {
+  isDevBuild: () => ipcRenderer.invoke(IPC_CHANNELS.IS_DEV_BUILD),
   getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.GET_STATUS),
   toggleVpn: (enable) => ipcRenderer.invoke(IPC_CHANNELS.TOGGLE_VPN, enable),
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS),
