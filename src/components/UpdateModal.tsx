@@ -37,9 +37,36 @@ interface ChangelogItem {
 
 const CHANGELOG_DATA: ChangelogItem[] = [
   {
+    version: '1.5.2',
+    date: '28.08.2026',
+    isCurrent: true,
+    highlights: [
+      {
+        icon: 'shield',
+        title: 'Изолированная среда DEV BUILD (Sandbox Isolation)',
+        desc: 'Полное разделение хранилищ данных (%APPDATA%\\ExiliumSwitch-Dev), независимый мьютекс и возможность параллельного запуска DEV-сборки и релизной версии.'
+      },
+      {
+        icon: 'zap',
+        title: 'Непрерывное поточное логирование на диск',
+        desc: 'Все события жизненного цикла и sing-box теперь в реальном времени синхронно записываются в файл сессии exilium-session-*.log.'
+      },
+      {
+        icon: 'sparkles',
+        title: 'Сквозная синхронизация версий и DEV-брендинг',
+        desc: 'Единый источник версии (v1.5.2) во всем стеке: окно, трей, сессионные логи. Яркие индикаторы DEV BUILD в шапке и консоли.'
+      },
+      {
+        icon: 'check',
+        title: 'Умная оптимизация модуля обновлений',
+        desc: 'Интеллектуальная изоляция фоновых проверок GitHub Releases в DEV-режиме и исключение ложных таймаутов при тестировании без туннеля.'
+      }
+    ]
+  },
+  {
     version: '1.5.1',
     date: '27.08.2026',
-    isCurrent: true,
+    isCurrent: false,
     highlights: [
       {
         icon: 'shield',

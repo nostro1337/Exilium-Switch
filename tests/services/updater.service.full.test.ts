@@ -4,7 +4,7 @@ const updaterListeners: Record<string, Function> = {}
 
 vi.mock('electron', () => ({
   app: {
-    getVersion: vi.fn(() => '1.5.1'),
+    getVersion: vi.fn(() => '1.5.2'),
     isPackaged: true
   },
   BrowserWindow: vi.fn(),
@@ -66,7 +66,7 @@ describe('UpdaterService Complete Lifecycle & Events', () => {
 
     // update-not-available
     if (updaterListeners['update-not-available']) {
-      updaterListeners['update-not-available']({ version: '1.5.1' })
+      updaterListeners['update-not-available']({ version: '1.5.2' })
       expect(mockSend).toHaveBeenCalledWith('updater:not-available')
     }
 

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 vi.mock('electron', () => ({
   app: {
-    getVersion: vi.fn(() => '1.5.1'),
+    getVersion: vi.fn(() => '1.5.2'),
     isPackaged: false
   },
   BrowserWindow: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock('electron-updater', () => {
       on: vi.fn((event: string, cb: Function) => {
         listeners[event] = cb
       }),
-      checkForUpdates: vi.fn(async () => ({ updateInfo: { version: '1.5.1' } })),
+      checkForUpdates: vi.fn(async () => ({ updateInfo: { version: '1.5.2' } })),
       downloadUpdate: vi.fn(async () => {}),
       quitAndInstall: vi.fn()
     }

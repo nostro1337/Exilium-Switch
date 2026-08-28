@@ -28,7 +28,7 @@ vi.mock('electron-updater', () => {
 
 vi.mock('electron', () => ({
   app: {
-    getVersion: vi.fn(() => '1.5.1'),
+    getVersion: vi.fn(() => '1.5.2'),
     isPackaged: true
   },
   BrowserWindow: vi.fn(),
