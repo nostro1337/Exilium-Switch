@@ -55,24 +55,25 @@ def setup_vps(ip, password, port=22):
             print(f"[STDERR/NOTE]: {err}")
         print()
 
-    # 1. Swap Memory
+    # 1. Swap Memory (512MB)
     swap_cmd = """
-if [ $(swapon --show | wc -l) -eq 0 ]; then
-    echo "Creating 2GB swap file..."
-    fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+echo "Reconfiguring swap to 512MB..."
+if [ $(free -m | awk '/Swap:/ {print $2}') -ne 511 ] && [ $(free -m | awk '/Swap:/ {print $2}') -ne 512 ]; then
+    swapoff -a 2>/dev/null || true
+    rm -f /swapfile
+    fallocate -l 512M /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=512
     chmod 600 /swapfile
     mkswap /swapfile
     swapon /swapfile
-    if ! grep -q '/swapfile' /etc/fstab; then
-        echo '/swapfile none swap sw 0 0' >> /etc/fstab
-    fi
-    echo "✓ Swap configured successfully."
+    sed -i '/swapfile/d' /etc/fstab
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    echo "✓ 512MB Swap configured successfully."
 else
-    echo "✓ Swap already active:"
-    swapon --show
+    echo "✓ 512MB Swap already active."
 fi
+swapon --show
 """
-    exec_remote(swap_cmd, "1. Configure 2GB Swap & OOM Protection")
+    exec_remote(swap_cmd, "1. Configure 512MB Swap & OOM Protection")
 
     # 2. Kernel Network & VLESS Optimization (Merged & Dedicated)
     sysctl_cmd = """
@@ -199,13 +200,48 @@ fail2ban-client status
 """
     exec_remote(f2b_cmd, "5. Configure Fail2ban Jails & Whitelist")
 
-    # 6. Disable Unused Docker
-    docker_cmd = """
-systemctl stop docker containerd >/dev/null 2>&1
-systemctl disable docker containerd >/dev/null 2>&1
-free -m
+    # 6. Deep Disk & Memory Cleanup (Purge Snapd, Docker, APT Cache, Journald)
+    cleanup_cmd = """
+echo "Purging snapd, lxd and bloatware..."
+systemctl stop snapd.service snapd.socket snapd.seeded.service snap.lxd.daemon.unix.socket 2>/dev/null || true
+systemctl disable snapd.service snapd.socket snapd.seeded.service 2>/dev/null || true
+for m in $(mount | grep /snap | awk '{print $3}'); do umount -l "$m" 2>/dev/null || true; done
+umount -l /var/snap 2>/dev/null || true
+DEBIAN_FRONTEND=noninteractive apt-get purge -y snapd gnome-software-plugin-snap >/dev/null 2>&1 || true
+rm -rf /snap /var/snap /var/lib/snapd /var/cache/snapd /usr/lib/snapd /root/snap /home/*/snap /etc/systemd/system/snap*
+
+cat <<'EOF' > /etc/apt/preferences.d/nosnap.pref
+Package: snapd
+Pin: release *
+Pin-Priority: -10
+EOF
+
+echo "Disabling idle Docker & Containerd..."
+systemctl stop docker.socket docker.service containerd.service 2>/dev/null || true
+systemctl disable docker.socket docker.service containerd.service 2>/dev/null || true
+rm -rf /var/lib/docker /var/lib/containerd 2>/dev/null || true
+
+echo "Purging APT cache & old packages..."
+export DEBIAN_FRONTEND=noninteractive
+apt-get autoremove --purge -y -qq 2>/dev/null || true
+apt-get clean
+rm -rf /var/cache/apt/archives/* /var/lib/apt/lists/*
+
+echo "Restricting journald size to 15MB..."
+mkdir -p /etc/systemd/journald.conf.d
+cat <<'EOF' > /etc/systemd/journald.conf.d/size-limit.conf
+[Journal]
+SystemMaxUse=15M
+SystemMaxFileSize=5M
+MaxRetentionSec=7day
+EOF
+systemctl restart systemd-journald
+journalctl --vacuum-size=10M --vacuum-time=3d >/dev/null 2>&1
+find /var/log -type f \( -name "*.gz" -o -name "*.1" -o -name "*.old" -o -name "*.log.*" \) -delete 2>/dev/null || true
+rm -rf /tmp/* /var/tmp/* 2>/dev/null || true
+echo "✓ Deep disk cleanup and RAM reclamation completed."
 """
-    exec_remote(docker_cmd, "6. Free Memory (Disable unused Docker & containerd)")
+    exec_remote(cleanup_cmd, "6. Deep Disk & RAM Cleanup (Snapd/Docker/APT/Logs)")
 
     # 7. UFW status ensure inactive
     ufw_cmd = """

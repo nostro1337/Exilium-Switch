@@ -24,6 +24,7 @@ logs/
 *.txt
 WorkPC_Audit_*
 OfficeTest/
+FriendIncident/
 !README.md
 
 # OS & Editor Files
@@ -33,3 +34,5 @@ Thumbs.db
 *.swo
 .vscode/
 .idea/
+.codegraph/
+graphify-out/
