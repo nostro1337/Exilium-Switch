@@ -21,6 +21,7 @@ profiles/
 
 # Logs and Session Diagnostics
 *.log
+temp_*
 logs/
 *.txt
 WorkPC_Audit_*
