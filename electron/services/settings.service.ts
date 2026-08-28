@@ -65,10 +65,12 @@ export class SettingsService {
 
   private syncAutoStartWithOS(enable: boolean): void {
     try {
-      app.setLoginItemSettings({
-        openAtLogin: enable,
-        openAsHidden: this.loadSettings().startMinimized
-      })
+      if (app && typeof app.setLoginItemSettings === 'function') {
+        app.setLoginItemSettings({
+          openAtLogin: enable,
+          openAsHidden: this.loadSettings().startMinimized
+        })
+      }
     } catch (err) {
       console.error('syncAutoStartWithOS error:', err)
     }

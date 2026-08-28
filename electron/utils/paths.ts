@@ -10,7 +10,12 @@ export function getRealExePath(): string {
 }
 
 export function getAppDataDir(): string {
-  return app.getPath('userData')
+  try {
+    if (app && typeof app.getPath === 'function') {
+      return app.getPath('userData')
+    }
+  } catch {}
+  return path.join(process.env.APPDATA || process.env.USERPROFILE || '.', 'ExiliumSwitch')
 }
 
 export function getProfilesDir(): string {
@@ -29,11 +34,12 @@ export function ensureCachedIcons(): { icoPath: string; pngPath: string } {
   try {
     if (!fs.existsSync(icoPath)) {
       const candidates = [
-        path.join(app.getAppPath(), 'ExiliumSwitchIcon.ico'),
+        path.join(app.getAppPath(), 'assets', 'icons', 'ExiliumSwitchIcon.ico'),
         path.join(app.getAppPath(), 'build', 'icon.ico'),
-        path.join(process.resourcesPath, 'ExiliumSwitchIcon.ico'),
+        path.join(process.resourcesPath, 'assets', 'icons', 'ExiliumSwitchIcon.ico'),
         path.join(process.resourcesPath, 'icon.ico'),
-        path.resolve('ExiliumSwitchIcon.ico')
+        path.resolve('assets', 'icons', 'ExiliumSwitchIcon.ico'),
+        path.resolve('build', 'icon.ico')
       ]
       for (const candidate of candidates) {
         if (fs.existsSync(candidate)) {

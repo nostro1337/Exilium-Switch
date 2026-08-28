@@ -14,6 +14,9 @@
     "package": "npm run build:dir && electron-builder --win nsis portable --prepackaged release/win-unpacked",
     "package:installer": "npm run build:dir && electron-builder --win nsis --prepackaged release/win-unpacked",
     "package:portable": "npm run build:dir && electron-builder --win portable --prepackaged release/win-unpacked",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
     "start": "electron ."
   },
   "dependencies": {
@@ -30,6 +33,7 @@
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^4.1.11",
     "autoprefixer": "^10.4.20",
     "electron": "^34.2.0",
     "electron-builder": "^25.1.8",
@@ -38,6 +42,7 @@
     "typescript": "^5.7.3",
     "vite": "^6.1.0",
     "vite-plugin-electron": "^0.29.0",
-    "vite-plugin-electron-renderer": "^0.14.6"
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vitest": "^4.1.11"
   }
 }
