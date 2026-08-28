@@ -106,6 +106,8 @@ export class LogService {
     if (!fs.existsSync(logsDir)) {
       fs.mkdirSync(logsDir, { recursive: true })
     }
-    shell.openPath(logsDir).catch(console.error)
+    if (shell && typeof shell.openPath === 'function') {
+      shell.openPath(logsDir).catch(console.error)
+    }
   }
 }

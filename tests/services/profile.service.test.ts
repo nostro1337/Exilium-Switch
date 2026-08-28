@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { ProfileService } from '../../electron/services/profile.service'
 
-describe('ProfileService Management', () => {
+describe('ProfileService Comprehensive Management', () => {
   let profileService: ProfileService
 
   beforeEach(() => {
@@ -22,5 +22,29 @@ describe('ProfileService Management', () => {
     expect(res.profile).toBeDefined()
     expect(res.profile?.name).toBe('Test-Auto-Import_HOME')
     expect(res.profile?.mode).toBe('home')
+  })
+
+  it('should list profiles filtered by mode and retrieve active profile', () => {
+    const profiles = profileService.getProfiles('home')
+    expect(Array.isArray(profiles)).toBe(true)
+
+    const active = profileService.getActiveProfile('home')
+    if (profiles.length > 0) {
+      expect(active).toBeDefined()
+    }
+  })
+
+  it('should handle selecting and deleting profile IDs', () => {
+    const validLink = 'vless://uuid-to-delete@89.124.94.246:443?type=tcp&security=reality&pbk=test#To-Delete'
+    const imported = profileService.importVlessLink(validLink, 'home')
+    expect(imported.success).toBe(true)
+
+    const profileId = imported.profile!.id
+
+    const selectRes = profileService.selectProfile(profileId)
+    expect(selectRes.success).toBe(true)
+
+    const deleteRes = profileService.deleteProfile(profileId)
+    expect(deleteRes.success).toBe(true)
   })
 })

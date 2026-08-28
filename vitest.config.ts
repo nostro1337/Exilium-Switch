@@ -4,8 +4,8 @@ import path from 'node:path'
 export default defineConfig({
   test: {
     globals: true,
-    environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    environment: 'happy-dom',
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -13,6 +13,8 @@ export default defineConfig({
         'electron/services/**',
         'electron/utils/**',
         'electron/core/**',
+        'electron/ipc/**',
+        'src/hooks/**',
         'shared/**'
       ]
     }

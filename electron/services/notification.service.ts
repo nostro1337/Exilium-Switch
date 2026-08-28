@@ -25,7 +25,8 @@ export class NotificationService {
     try {
       const exePath = getRealExePath()
       const { icoPath } = ensureCachedIcons()
-      const shortcutDir = path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs')
+      const appData = (app && typeof app.getPath === 'function') ? app.getPath('appData') : (process.env.APPDATA || '.')
+      const shortcutDir = path.join(appData, 'Microsoft', 'Windows', 'Start Menu', 'Programs')
       if (!fs.existsSync(shortcutDir)) {
         fs.mkdirSync(shortcutDir, { recursive: true })
       }
@@ -51,7 +52,7 @@ export class NotificationService {
       const { pngPath, icoPath } = ensureCachedIcons()
       const iconFile = fs.existsSync(pngPath) ? pngPath : (fs.existsSync(icoPath) ? icoPath : undefined)
 
-      if (Notification.isSupported()) {
+      if (Notification && typeof Notification.isSupported === 'function' && Notification.isSupported()) {
         const notif = new Notification({
           title,
           body,

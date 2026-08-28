@@ -26,10 +26,13 @@ export class SingBoxService {
   }
 
   public getBinaryPath(): { exePath: string; dir: string } | null {
+    const appPath = (app && typeof app.getAppPath === 'function') ? app.getAppPath() : process.cwd()
+    const resPath = process.resourcesPath || process.cwd()
+
     const candidates = [
       'C:\\sing-box',
-      path.join(process.resourcesPath, 'sing-box'),
-      path.join(app.getAppPath(), 'sing-box'),
+      path.join(resPath, 'sing-box'),
+      path.join(appPath, 'sing-box'),
       path.join(__dirname, '..', '..', 'sing-box'),
       path.resolve('sing-box')
     ]

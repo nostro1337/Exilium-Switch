@@ -25,15 +25,17 @@ export class UpdaterService {
     this.isInitialized = true
     this.getMainWindow = windowResolver
 
-    autoUpdater.autoDownload = false
-    autoUpdater.autoInstallOnAppQuit = false
-
     try {
-      autoUpdater.setFeedURL({
-        provider: 'github',
-        owner: 'nostro1337',
-        repo: 'Exilium-Switch'
-      })
+      if (app && typeof app.getVersion === 'function') {
+        autoUpdater.autoDownload = false
+        autoUpdater.autoInstallOnAppQuit = false
+
+        autoUpdater.setFeedURL({
+          provider: 'github',
+          owner: 'nostro1337',
+          repo: 'Exilium-Switch'
+        })
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.warn('[Updater] setFeedURL fallback notice:', msg)

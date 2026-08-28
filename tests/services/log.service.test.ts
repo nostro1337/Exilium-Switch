@@ -60,4 +60,14 @@ describe('LogService Ring Buffer & Parser', () => {
     expect(logs.length).toBeLessThanOrEqual(1000)
     expect(logs[logs.length - 1].text).toBe('Строка лога #1099')
   })
+
+  it('should export logs and open logs folder without exceptions', () => {
+    logService.addLog('Строка для экспорта', 'info')
+    const res = logService.exportLogs()
+    expect(res).toBeDefined()
+    expect(res.success).toBe(true)
+    expect(res.savedPath).toBeDefined()
+
+    expect(() => logService.openLogsFolder()).not.toThrow()
+  })
 })

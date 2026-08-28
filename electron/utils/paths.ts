@@ -32,12 +32,15 @@ export function ensureCachedIcons(): { icoPath: string; pngPath: string } {
   const pngPath = path.join(appData, 'app_icon.png')
 
   try {
+    const appPath = (app && typeof app.getAppPath === 'function') ? app.getAppPath() : process.cwd()
+    const resPath = process.resourcesPath || process.cwd()
+
     if (!fs.existsSync(icoPath)) {
       const candidates = [
-        path.join(app.getAppPath(), 'assets', 'icons', 'ExiliumSwitchIcon.ico'),
-        path.join(app.getAppPath(), 'build', 'icon.ico'),
-        path.join(process.resourcesPath, 'assets', 'icons', 'ExiliumSwitchIcon.ico'),
-        path.join(process.resourcesPath, 'icon.ico'),
+        path.join(appPath, 'assets', 'icons', 'ExiliumSwitchIcon.ico'),
+        path.join(appPath, 'build', 'icon.ico'),
+        path.join(resPath, 'assets', 'icons', 'ExiliumSwitchIcon.ico'),
+        path.join(resPath, 'icon.ico'),
         path.resolve('assets', 'icons', 'ExiliumSwitchIcon.ico'),
         path.resolve('build', 'icon.ico')
       ]
@@ -51,9 +54,9 @@ export function ensureCachedIcons(): { icoPath: string; pngPath: string } {
 
     if (!fs.existsSync(pngPath)) {
       const candidates = [
-        path.join(app.getAppPath(), 'build', 'icon.png'),
-        path.join(app.getAppPath(), 'public', 'icon.png'),
-        path.join(process.resourcesPath, 'icon.png'),
+        path.join(appPath, 'build', 'icon.png'),
+        path.join(appPath, 'public', 'icon.png'),
+        path.join(resPath, 'icon.png'),
         path.resolve('build', 'icon.png')
       ]
       for (const candidate of candidates) {
