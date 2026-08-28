@@ -47,8 +47,9 @@ export class TrayManager {
     const profileLabel = activeProfile ? `Профиль: ${activeProfile.name}` : 'Профиль: (не выбран)'
 
     const contextMenu = Menu.buildFromTemplate([
-      { label: 'Exilium Switch v1.3 (by Nostro)', enabled: false },
+      { label: `Exilium Switch v${app.getVersion()} (by Nostro)`, enabled: false },
       { type: 'separator' },
+
       {
         label: isRunning ? '● Resident Mode: ВКЛЮЧЕН' : '○ Resident Mode: ВЫКЛЮЧЕН',
         enabled: false

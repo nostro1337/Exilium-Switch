@@ -1,4 +1,4 @@
-import { shell } from 'electron'
+import { app, shell } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { getAppDataDir } from '../utils/paths'
@@ -89,8 +89,12 @@ export class LogService {
       }
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-      const savedPath = path.join(logsDir, `exilium-logs-${timestamp}.log`)
-      const content = this.buffer.map(l => `[${l.time}] [${l.type.toUpperCase()}] ${l.text}`).join('\n')
+      const savedPath = path.join(logsDir, `exilium-session-${timestamp}.log`)
+      const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : 'unknown'
+      const sessionStart = new Date().toISOString()
+      const header = `=== EXILIUM SWITCH v${version} SESSION STARTED [${sessionStart}] (by Nostro) ===\n`
+      const content = header + this.buffer.map(l => `[${l.time}] [${l.type.toUpperCase().padEnd(3)}] ${l.text}`).join('\n')
+
 
       fs.writeFileSync(savedPath, content, 'utf-8')
       return { success: true, savedPath }
