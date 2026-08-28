@@ -32,6 +32,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
     }
   }, [isOpen])
 
+  const handleToggle = async (key: keyof AppSettings, value: boolean) => {
+    const updated = { ...settings, [key]: value }
+    setSettings(updated)
+    try {
+      await window.electronAPI?.saveSettings({ [key]: value })
+    } catch {}
+  }
+
   const handleSave = async () => {
     setSaving(true)
     try {
@@ -46,14 +54,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
     }
   }
 
-  const handleResetDefaults = () => {
-    setSettings({
+  const handleResetDefaults = async () => {
+    const defaults = {
       realZone: 'Tomsk Standard Time',
       fakeZone: 'W. Europe Standard Time',
       autoStart: false,
       minimizeToTray: true,
       startMinimized: false
-    })
+    }
+    setSettings(defaults)
+    await window.electronAPI?.saveSettings(defaults)
   }
 
   if (!isOpen) return null
@@ -137,7 +147,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               <input
                 type="checkbox"
                 checked={settings.minimizeToTray}
-                onChange={(e) => setSettings({ ...settings, minimizeToTray: e.target.checked })}
+                onChange={(e) => handleToggle('minimizeToTray', e.target.checked)}
                 className="w-4 h-4 rounded accent-white cursor-pointer"
               />
             </label>
@@ -147,7 +157,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               <input
                 type="checkbox"
                 checked={settings.autoStart}
-                onChange={(e) => setSettings({ ...settings, autoStart: e.target.checked })}
+                onChange={(e) => handleToggle('autoStart', e.target.checked)}
                 className="w-4 h-4 rounded accent-white cursor-pointer"
               />
             </label>
@@ -157,7 +167,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               <input
                 type="checkbox"
                 checked={settings.startMinimized}
-                onChange={(e) => setSettings({ ...settings, startMinimized: e.target.checked })}
+                onChange={(e) => handleToggle('startMinimized', e.target.checked)}
                 className="w-4 h-4 rounded accent-white cursor-pointer"
               />
             </label>

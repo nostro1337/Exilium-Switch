@@ -22,12 +22,14 @@ export class SettingsService {
   }
 
   public loadSettings(): AppSettings {
-    if (this.cachedSettings) return this.cachedSettings
-
     try {
       if (fs.existsSync(this.configPath)) {
         const raw = fs.readFileSync(this.configPath, 'utf-8')
         const parsed = JSON.parse(raw)
+        // Automatic migration from Moscow default to user's real Tomsk timezone
+        if (parsed.realZone === 'Russian Standard Time' || !parsed.realZone) {
+          parsed.realZone = 'Tomsk Standard Time'
+        }
         this.cachedSettings = { ...DEFAULT_SETTINGS, ...parsed }
         return this.cachedSettings!
       }

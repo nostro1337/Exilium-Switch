@@ -23,7 +23,7 @@ describe('Shared Contracts & IPC Channels Integrity', () => {
     expect(DEFAULT_SETTINGS.minimizeToTray).toBe(true)
     expect(DEFAULT_SETTINGS.startMinimized).toBe(false)
     expect(DEFAULT_SETTINGS.appMode).toBe('home')
-    expect(DEFAULT_SETTINGS.realZone).toBe('Russian Standard Time')
+    expect(DEFAULT_SETTINGS.realZone).toBe('Tomsk Standard Time')
     expect(DEFAULT_SETTINGS.fakeZone).toBe('W. Europe Standard Time')
   })
 })

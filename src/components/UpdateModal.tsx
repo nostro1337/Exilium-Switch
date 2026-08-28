@@ -37,9 +37,36 @@ interface ChangelogItem {
 
 const CHANGELOG_DATA: ChangelogItem[] = [
   {
-    version: '1.5.3',
+    version: '1.5.4',
     date: '28.08.2026',
     isCurrent: true,
+    highlights: [
+      {
+        icon: 'shield',
+        title: 'Гарантированный запуск от Администратора (UAC Elevation)',
+        desc: 'Встроен манифест requireAdministrator для надежного управления системными службами (lfsvc), часовыми поясами и сетевым стеком.'
+      },
+      {
+        icon: 'sparkles',
+        title: 'Нативный рендеринг системного трея и иконок',
+        desc: 'Исправлена отрисовка ICO в системном трее Windows и Start Menu ярлыках без деструктивного сжатия.'
+      },
+      {
+        icon: 'check',
+        title: 'Фиксация часового пояса (Tomsk Standard Time)',
+        desc: 'Реальный часовой пояс по умолчанию зафиксирован на Tomsk Standard Time с автоматической миграцией и надежным сохранением настроек.'
+      },
+      {
+        icon: 'sparkles',
+        title: 'Изоляция профилей Home / Office и авто-сидинг',
+        desc: 'Строгое разделение активных профилей по режимам и автоматическое создание корпоративного профиля Aviabasa.'
+      }
+    ]
+  },
+  {
+    version: '1.5.3',
+    date: '28.08.2026',
+    isCurrent: false,
     highlights: [
       {
         icon: 'sparkles',

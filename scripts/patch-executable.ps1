@@ -29,6 +29,7 @@ if ((Test-Path $rcedit) -and (Test-Path $exe)) {
     Write-Host "Patching PE metadata on $exe for version $appVersion..."
     & $rcedit $exe `
         --set-icon $icon `
+        --set-requested-execution-level "requireAdministrator" `
         --set-version-string "FileDescription" "Exilium Switch" `
         --set-version-string "ProductName" "Exilium Switch" `
         --set-version-string "CompanyName" "Nostro" `

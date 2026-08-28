@@ -1,5 +1,6 @@
 import { app, Tray, Menu, nativeImage } from 'electron'
 import fs from 'node:fs'
+import path from 'node:path'
 import { ensureCachedIcons, isDevBuild } from '../utils/paths'
 import { WindowManager } from './window-manager'
 import { SingBoxService } from '../services/singbox.service'
@@ -22,8 +23,15 @@ export class TrayManager {
   public createTray(): void {
     try {
       const { icoPath, pngPath } = ensureCachedIcons()
-      const iconPath = fs.existsSync(icoPath) ? icoPath : pngPath
-      const icon = nativeImage.createFromPath(iconPath).resize({ width: 24, height: 24 })
+      let icon: Electron.NativeImage
+      if (fs.existsSync(icoPath) && fs.statSync(icoPath).size > 0) {
+        icon = nativeImage.createFromPath(icoPath)
+      } else if (fs.existsSync(pngPath) && fs.statSync(pngPath).size > 0) {
+        icon = nativeImage.createFromPath(pngPath).resize({ width: 24, height: 24 })
+      } else {
+        const fallback = path.join(process.resourcesPath || '', 'icon.ico')
+        icon = nativeImage.createFromPath(fallback)
+      }
 
       const isDev = isDevBuild()
       const title = isDev ? 'Exilium Switch [DEV BUILD] (by Nostro)' : 'Exilium Switch — Resident Shield (by Nostro)'

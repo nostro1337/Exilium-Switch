@@ -8,7 +8,7 @@ exports.default = async function (context) {
   const appOutDir = context.appOutDir;
   const exePath = path.join(appOutDir, 'Exilium Switch.exe');
   const iconPath = path.resolve(__dirname, '../build/icon.ico');
-  const version = context.packager?.appInfo?.version || '1.5.3';
+  const version = context.packager?.appInfo?.version || '1.5.4';
 
   // Ensure app-update.yml exists in resources
   const updateYmlSource = path.resolve(__dirname, '../build/app-update.yml');
@@ -17,6 +17,20 @@ exports.default = async function (context) {
     fs.copyFileSync(updateYmlSource, updateYmlDest);
     console.log(`[afterPack] Ensured app-update.yml in ${updateYmlDest}`);
   }
+
+  // Ensure icon.ico and icon.png exist in resources for runtime
+  const resDir = path.join(appOutDir, 'resources');
+  if (!fs.existsSync(resDir)) fs.mkdirSync(resDir, { recursive: true });
+  const iconIcoSrc = path.resolve(__dirname, '../build/icon.ico');
+  const iconPngSrc = path.resolve(__dirname, '../build/icon.png');
+  if (fs.existsSync(iconIcoSrc)) fs.copyFileSync(iconIcoSrc, path.join(resDir, 'icon.ico'));
+  if (fs.existsSync(iconPngSrc)) fs.copyFileSync(iconPngSrc, path.join(resDir, 'icon.png'));
+
+  // Ensure Configs/work_aviabasa.json exists in resources
+  const configsDir = path.join(resDir, 'Configs');
+  if (!fs.existsSync(configsDir)) fs.mkdirSync(configsDir, { recursive: true });
+  const aviabasaSrc = path.resolve(__dirname, '../Configs/work_aviabasa.json');
+  if (fs.existsSync(aviabasaSrc)) fs.copyFileSync(aviabasaSrc, path.join(configsDir, 'work_aviabasa.json'));
 
   // Find rcedit-x64.exe
   let rceditPath = null;
@@ -39,12 +53,12 @@ exports.default = async function (context) {
   rceditPath = findRcedit(cacheBase);
 
   if (rceditPath && fs.existsSync(exePath)) {
-    console.log(`[afterPack] Patching icon, manifest (highestAvailable), and metadata on ${exePath}...`);
+    console.log(`[afterPack] Patching icon, manifest (requireAdministrator), and metadata on ${exePath}...`);
     try {
       execFileSync(rceditPath, [
         exePath,
         '--set-icon', iconPath,
-        '--set-requested-execution-level', 'highestAvailable',
+        '--set-requested-execution-level', 'requireAdministrator',
         '--set-version-string', 'FileDescription', 'Exilium Switch',
         '--set-version-string', 'ProductName', 'Exilium Switch',
         '--set-version-string', 'CompanyName', 'Nostro',

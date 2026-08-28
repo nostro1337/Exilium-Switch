@@ -12,7 +12,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  realZone: 'Russian Standard Time',
+  realZone: 'Tomsk Standard Time',
   fakeZone: 'W. Europe Standard Time',
   autoStart: false,
   minimizeToTray: true,

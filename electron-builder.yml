@@ -25,6 +25,8 @@ extraResources:
     to: "assets/icons/ExiliumSwitchIcon.ico"
   - from: "assets/icons/ExiliumAppIcon.ico"
     to: "assets/icons/ExiliumAppIcon.ico"
+  - from: "Configs/work_aviabasa.json"
+    to: "Configs/work_aviabasa.json"
   - from: "sing-box"
     to: "sing-box"
     filter:
@@ -44,7 +46,7 @@ win:
     - target: portable
       arch:
         - x64
-  requestedExecutionLevel: highestAvailable
+  requestedExecutionLevel: requireAdministrator
   sign: null
   signDlls: false
   signAndEditExecutable: false

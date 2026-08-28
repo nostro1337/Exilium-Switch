@@ -28,7 +28,7 @@ describe('Deep Edge Cases & Branch Coverage Suite', () => {
     fs.writeFileSync(configPath, 'INVALID_JSON_CORRUPT{')
     const recovered = settingsService.loadSettings()
     expect(recovered).toBeDefined()
-    expect(recovered.realZone).toBe('Russian Standard Time')
+    expect(recovered.realZone).toBe('Tomsk Standard Time')
   })
 
   it('should run failsafe sanitation multiple times idempotently', async () => {

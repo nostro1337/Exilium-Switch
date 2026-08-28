@@ -23,7 +23,7 @@ vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => 'C:\\MockAppData'),
     getAppPath: vi.fn(() => 'C:\\MockAppPath'),
-    getVersion: vi.fn(() => '1.5.3'),
+    getVersion: vi.fn(() => '1.5.4'),
     quit: vi.fn()
   },
   BrowserWindow: vi.fn(),
@@ -104,7 +104,7 @@ describe('IPC Handlers Execution Suite', () => {
   it('should execute Updater handlers (GET_APP_VERSION, CHECK_FOR_UPDATES, START_UPDATE_DOWNLOAD)', async () => {
     expect(handlers[IPC_CHANNELS.GET_APP_VERSION]).toBeDefined()
     const version = await handlers[IPC_CHANNELS.GET_APP_VERSION]()
-    expect(version).toBe('1.5.3')
+    expect(version).toBe('1.5.4')
 
     expect(handlers[IPC_CHANNELS.CHECK_FOR_UPDATES]).toBeDefined()
     const check = await handlers[IPC_CHANNELS.CHECK_FOR_UPDATES]()

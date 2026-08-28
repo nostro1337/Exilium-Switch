@@ -61,19 +61,60 @@ export class ProfileService {
       const files = fs.readdirSync(profilesDir).filter(f => f.endsWith('.json') && f !== 'profiles_meta.json')
       const hasOffice = files.some(f => f.toLowerCase().includes('office') || f.toLowerCase().includes('work') || f.toLowerCase().includes('aviabasa'))
       if (!hasOffice) {
+        const dest = path.join(profilesDir, 'work_aviabasa.json')
         const candidates = [
-          path.join(app.getAppPath(), 'Configs', 'work_aviabasa.json'),
           path.join(process.resourcesPath, 'Configs', 'work_aviabasa.json'),
+          path.join(process.resourcesPath, 'work_aviabasa.json'),
+          path.join(app.getAppPath(), 'Configs', 'work_aviabasa.json'),
           path.resolve('Configs', 'work_aviabasa.json'),
           path.join(__dirname, '..', '..', 'Configs', 'work_aviabasa.json')
         ]
+        let seeded = false
         for (const cand of candidates) {
           if (fs.existsSync(cand)) {
-            const dest = path.join(profilesDir, 'work_aviabasa.json')
             fs.copyFileSync(cand, dest)
             this.saveMeta('work_aviabasa', { name: 'Корпоративный (Aviabasa)', mode: 'office' })
+            seeded = true
             break
           }
+        }
+        if (!seeded) {
+          // Inline fallback template for office mode if external config not bundled
+          const defaultOfficeConfig = {
+            log: { level: 'info', timestamp: true },
+            dns: {
+              servers: [
+                { tag: 'dns-corp', type: 'udp', server: '192.168.12.223', server_port: 53, detour: 'direct' },
+                { tag: 'dns-direct', type: 'udp', server: '77.88.8.8', server_port: 53, detour: 'direct' },
+                { tag: 'dns-remote', type: 'udp', server: '8.8.8.8', server_port: 53, detour: 'proxy-out' }
+              ],
+              rules: [
+                { domain_suffix: ['aviabasa.local', 'local'], server: 'dns-corp' },
+                { domain_suffix: ['ru', 'su', 'kz', 'by', 'vk.com', 'ya.ru', 'yandex.ru'], server: 'dns-direct' }
+              ],
+              final: 'dns-direct',
+              strategy: 'ipv4_only'
+            },
+            inbounds: [
+              { type: 'tun', tag: 'tun-in', interface_name: 'singbox-tun0', address: ['172.19.0.1/30'], mtu: 1400, auto_route: true, strict_route: false, stack: 'mixed' }
+            ],
+            outbounds: [
+              { type: 'vless', tag: 'proxy-out', server: '89.124.94.246', server_port: 2096, uuid: '2d34c6bd-dbec-4f75-b723-c55fcd4e7eb9', domain_strategy: 'ipv4_only', transport: { type: 'ws', path: '/office-ws' }, tls: { enabled: true, server_name: '89.124.94.246' } },
+              { type: 'direct', tag: 'direct' }
+            ],
+            route: {
+              auto_detect_interface: true,
+              rules: [
+                { action: 'sniff' },
+                { protocol: 'dns', action: 'hijack-dns' },
+                { ip_cidr: ['192.168.12.0/24'], outbound: 'direct' },
+                { ip_is_private: true, outbound: 'direct' }
+              ],
+              final: 'proxy-out'
+            }
+          }
+          fs.writeFileSync(dest, JSON.stringify(defaultOfficeConfig, null, 2), 'utf-8')
+          this.saveMeta('work_aviabasa', { name: 'Корпоративный (Aviabasa)', mode: 'office' })
         }
       }
     } catch {}
@@ -144,7 +185,7 @@ export class ProfileService {
 
     const filtered = filterMode ? profiles.filter(p => p.mode === filterMode) : profiles
 
-    // Ensure at least one profile is marked active if available
+    // Ensure at least one profile is marked active for this mode if available
     if (filtered.length > 0 && !filtered.some(p => p.isActive)) {
       filtered[0].isActive = true
       const updatedMap = { ...(settings.activeProfileIdByMode || {}), [currentMode]: filtered[0].id }
@@ -159,8 +200,7 @@ export class ProfileService {
     const currentMode = mode || settings.appMode || 'home'
     const list = this.getProfiles(currentMode)
     if (list.length === 0) {
-      const all = this.getProfiles()
-      return all.length > 0 ? all[0] : null
+      return null
     }
     const modeActiveId = (settings.activeProfileIdByMode as Record<string, string>)?.[currentMode] || settings.activeProfileId
     return list.find(p => p.id === modeActiveId) || list[0]
