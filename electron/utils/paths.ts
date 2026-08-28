@@ -69,17 +69,13 @@ export function ensureCachedIcons(): { icoPath: string; pngPath: string } {
       path.resolve('assets', 'icons', 'ExiliumAppIcon.ico')
     ]
 
-    let icoValid = fs.existsSync(icoPath) && fs.statSync(icoPath).size > 0
-    if (!icoValid) {
-      for (const candidate of icoCandidates) {
-        try {
-          if (fs.existsSync(candidate) && fs.statSync(candidate).size > 0) {
-            fs.copyFileSync(candidate, icoPath)
-            icoValid = true
-            break
-          }
-        } catch {}
-      }
+    for (const candidate of icoCandidates) {
+      try {
+        if (fs.existsSync(candidate) && fs.statSync(candidate).size > 100) {
+          fs.copyFileSync(candidate, icoPath)
+          break
+        }
+      } catch {}
     }
 
     const pngCandidates = [
@@ -93,17 +89,13 @@ export function ensureCachedIcons(): { icoPath: string; pngPath: string } {
       path.resolve('public', 'ExiliumAppIcon.png')
     ]
 
-    let pngValid = fs.existsSync(pngPath) && fs.statSync(pngPath).size > 0
-    if (!pngValid) {
-      for (const candidate of pngCandidates) {
-        try {
-          if (fs.existsSync(candidate) && fs.statSync(candidate).size > 0) {
-            fs.copyFileSync(candidate, pngPath)
-            pngValid = true
-            break
-          }
-        } catch {}
-      }
+    for (const candidate of pngCandidates) {
+      try {
+        if (fs.existsSync(candidate) && fs.statSync(candidate).size > 100) {
+          fs.copyFileSync(candidate, pngPath)
+          break
+        }
+      } catch {}
     }
   } catch (err) {
     console.error('ensureCachedIcons error:', err)

@@ -97,4 +97,23 @@ export function registerProfilesIpc(): void {
 
     return deleteRes
   })
+
+  ipcMain.handle(IPC_CHANNELS.PROFILES_CLEAR_ALL, async (_event, targetMode?: AppMode) => {
+    const isRunning = await singboxService.isRunning()
+    if (isRunning) {
+      return { success: false, error: 'Нельзя удалять профили при включенном VPN' }
+    }
+
+    const clearRes = profileService.clearAllProfiles(targetMode)
+
+    if (clearRes.success) {
+      const window = WindowManager.getInstance().getWindow()
+      if (window && !window.isDestroyed()) {
+        const status = await singboxService.getStatus()
+        window.webContents.send(IPC_CHANNELS.STATUS_UPDATED, status)
+      }
+    }
+
+    return clearRes
+  })
 }

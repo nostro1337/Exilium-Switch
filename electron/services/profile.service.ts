@@ -55,71 +55,6 @@ export class ProfileService {
     } catch {}
   }
 
-  public seedOfficeProfileIfNeeded(): void {
-    const profilesDir = getProfilesDir()
-    try {
-      const files = fs.readdirSync(profilesDir).filter(f => f.endsWith('.json') && f !== 'profiles_meta.json')
-      const hasOffice = files.some(f => f.toLowerCase().includes('office') || f.toLowerCase().includes('work') || f.toLowerCase().includes('aviabasa'))
-      if (!hasOffice) {
-        const dest = path.join(profilesDir, 'work_aviabasa.json')
-        const candidates = [
-          path.join(process.resourcesPath, 'Configs', 'work_aviabasa.json'),
-          path.join(process.resourcesPath, 'work_aviabasa.json'),
-          path.join(app.getAppPath(), 'Configs', 'work_aviabasa.json'),
-          path.resolve('Configs', 'work_aviabasa.json'),
-          path.join(__dirname, '..', '..', 'Configs', 'work_aviabasa.json')
-        ]
-        let seeded = false
-        for (const cand of candidates) {
-          if (fs.existsSync(cand)) {
-            fs.copyFileSync(cand, dest)
-            this.saveMeta('work_aviabasa', { name: 'Корпоративный (Aviabasa)', mode: 'office' })
-            seeded = true
-            break
-          }
-        }
-        if (!seeded) {
-          // Inline fallback template for office mode if external config not bundled
-          const defaultOfficeConfig = {
-            log: { level: 'info', timestamp: true },
-            dns: {
-              servers: [
-                { tag: 'dns-corp', type: 'udp', server: '192.168.12.223', server_port: 53, detour: 'direct' },
-                { tag: 'dns-direct', type: 'udp', server: '77.88.8.8', server_port: 53, detour: 'direct' },
-                { tag: 'dns-remote', type: 'udp', server: '8.8.8.8', server_port: 53, detour: 'proxy-out' }
-              ],
-              rules: [
-                { domain_suffix: ['aviabasa.local', 'local'], server: 'dns-corp' },
-                { domain_suffix: ['ru', 'su', 'kz', 'by', 'vk.com', 'ya.ru', 'yandex.ru'], server: 'dns-direct' }
-              ],
-              final: 'dns-direct',
-              strategy: 'ipv4_only'
-            },
-            inbounds: [
-              { type: 'tun', tag: 'tun-in', interface_name: 'singbox-tun0', address: ['172.19.0.1/30'], mtu: 1400, auto_route: true, strict_route: false, stack: 'mixed' }
-            ],
-            outbounds: [
-              { type: 'vless', tag: 'proxy-out', server: '89.124.94.246', server_port: 2096, uuid: '2d34c6bd-dbec-4f75-b723-c55fcd4e7eb9', domain_strategy: 'ipv4_only', transport: { type: 'ws', path: '/office-ws' }, tls: { enabled: true, server_name: '89.124.94.246' } },
-              { type: 'direct', tag: 'direct' }
-            ],
-            route: {
-              auto_detect_interface: true,
-              rules: [
-                { action: 'sniff' },
-                { protocol: 'dns', action: 'hijack-dns' },
-                { ip_cidr: ['192.168.12.0/24'], outbound: 'direct' },
-                { ip_is_private: true, outbound: 'direct' }
-              ],
-              final: 'proxy-out'
-            }
-          }
-          fs.writeFileSync(dest, JSON.stringify(defaultOfficeConfig, null, 2), 'utf-8')
-          this.saveMeta('work_aviabasa', { name: 'Корпоративный (Aviabasa)', mode: 'office' })
-        }
-      }
-    } catch {}
-  }
-
   public cleanTestSpamProfiles(): void {
     try {
       const profilesDir = getProfilesDir()
@@ -156,8 +91,6 @@ export class ProfileService {
     const activeId = (settings.activeProfileIdByMode as Record<string, string>)?.[currentMode] || settings.activeProfileId
     const meta = this.loadMeta()
 
-    this.seedOfficeProfileIfNeeded()
-
     const files = fs.readdirSync(profilesDir).filter(f => f.endsWith('.json') && f !== 'default.json' && f !== 'profiles_meta.json')
     const profiles: ConfigProfile[] = []
 
@@ -185,7 +118,7 @@ export class ProfileService {
 
     const filtered = filterMode ? profiles.filter(p => p.mode === filterMode) : profiles
 
-    // Ensure at least one profile is marked active for this mode if available
+    // If active profile is not set or not in filtered list, set first profile as active
     if (filtered.length > 0 && !filtered.some(p => p.isActive)) {
       filtered[0].isActive = true
       const updatedMap = { ...(settings.activeProfileIdByMode || {}), [currentMode]: filtered[0].id }
@@ -204,6 +137,53 @@ export class ProfileService {
     }
     const modeActiveId = (settings.activeProfileIdByMode as Record<string, string>)?.[currentMode] || settings.activeProfileId
     return list.find(p => p.id === modeActiveId) || list[0]
+  }
+
+  public clearAllProfiles(targetMode?: AppMode): { success: boolean; count: number } {
+    try {
+      const profilesDir = getProfilesDir()
+      if (!fs.existsSync(profilesDir)) return { success: true, count: 0 }
+      const meta = this.loadMeta()
+      const files = fs.readdirSync(profilesDir).filter(f => f.endsWith('.json') && f !== 'profiles_meta.json')
+      let deletedCount = 0
+
+      for (const file of files) {
+        const id = path.basename(file, '.json')
+        const profileMode = meta[id]?.mode || (id.toLowerCase().includes('office') ? 'office' : 'home')
+        if (!targetMode || profileMode === targetMode) {
+          try {
+            fs.unlinkSync(path.join(profilesDir, file))
+            delete meta[id]
+            deletedCount++
+          } catch {}
+        }
+      }
+
+      fs.writeFileSync(this.getMetaPath(), JSON.stringify(meta, null, 2), 'utf-8')
+
+      const settingsService = SettingsService.getInstance()
+      const settings = settingsService.loadSettings()
+      const updatedMap = { ...(settings.activeProfileIdByMode || {}) }
+      if (targetMode) {
+        delete updatedMap[targetMode]
+      } else {
+        Object.keys(updatedMap).forEach(k => delete updatedMap[k as AppMode])
+      }
+      settingsService.saveSettings({
+        activeProfileId: undefined,
+        activeProfileIdByMode: updatedMap
+      })
+
+      LogService.getInstance().addLog(
+        targetMode
+          ? `Все профили для режима [${targetMode === 'office' ? 'Офис' : 'Дом'}] успешно удалены (${deletedCount} шт.).`
+          : `Все профили успешно удалены из хранилища (${deletedCount} шт.).`,
+        'info'
+      )
+      return { success: true, count: deletedCount }
+    } catch (err: any) {
+      return { success: false, count: 0 }
+    }
   }
 
   public importJsonContent(rawContent: string, originalName: string, targetMode?: AppMode): { success: boolean; profile?: ConfigProfile; error?: string } {

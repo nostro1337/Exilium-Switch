@@ -55,4 +55,17 @@ describe('ProfileService Comprehensive Management', () => {
   it('should execute cleanTestSpamProfiles without throwing', () => {
     expect(() => profileService.cleanTestSpamProfiles()).not.toThrow()
   })
+
+  it('should execute clearAllProfiles and wipe mode profiles successfully', () => {
+    const validLink = 'vless://uuid-to-clear@89.124.94.246:443?type=tcp&security=reality&pbk=test#To-Clear'
+    profileService.importVlessLink(validLink, 'office')
+
+    const clearRes = profileService.clearAllProfiles('office')
+    expect(clearRes.success).toBe(true)
+    expect(clearRes.count).toBeGreaterThanOrEqual(1)
+
+    const officeProfiles = profileService.getProfiles('office')
+    expect(officeProfiles.length).toBe(0)
+    expect(profileService.getActiveProfile('office')).toBeNull()
+  })
 })

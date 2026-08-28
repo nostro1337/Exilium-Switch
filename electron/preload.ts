@@ -43,6 +43,7 @@ export interface IpcApi {
   importVlessLink: (vlessUrl: string, mode?: AppMode) => Promise<{ success: boolean; profile?: ConfigProfile; error?: string }>
   selectProfile: (profileId: string) => Promise<{ success: boolean; error?: string }>
   deleteProfile: (profileId: string) => Promise<{ success: boolean; error?: string }>
+  clearAllProfiles: (mode?: AppMode) => Promise<{ success: boolean; count: number; error?: string }>
   
   // Log Export & File Operations
   exportLogs: () => Promise<{ success: boolean; savedPath?: string; error?: string }>
@@ -94,6 +95,7 @@ const api: IpcApi = {
   importVlessLink: (vlessUrl, mode) => ipcRenderer.invoke(IPC_CHANNELS.IMPORT_VLESS_LINK, vlessUrl, mode),
   selectProfile: (profileId) => ipcRenderer.invoke(IPC_CHANNELS.SELECT_PROFILE, profileId),
   deleteProfile: (profileId) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_PROFILE, profileId),
+  clearAllProfiles: (mode) => ipcRenderer.invoke(IPC_CHANNELS.PROFILES_CLEAR_ALL, mode),
   
   // Export Logs
   exportLogs: () => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_LOGS),

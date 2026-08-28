@@ -23,20 +23,50 @@ export class TrayManager {
   public createTray(): void {
     try {
       const { icoPath, pngPath } = ensureCachedIcons()
-      let icon: Electron.NativeImage
-      if (fs.existsSync(icoPath) && fs.statSync(icoPath).size > 0) {
-        icon = nativeImage.createFromPath(icoPath)
-      } else if (fs.existsSync(pngPath) && fs.statSync(pngPath).size > 0) {
-        icon = nativeImage.createFromPath(pngPath).resize({ width: 24, height: 24 })
-      } else {
-        const fallback = path.join(process.resourcesPath || '', 'icon.ico')
-        icon = nativeImage.createFromPath(fallback)
+      const appPath = (app && typeof app.getAppPath === 'function') ? app.getAppPath() : process.cwd()
+      const resPath = process.resourcesPath || ''
+
+      const tryImage = (filePath: string, resize = false): Electron.NativeImage | null => {
+        if (fs.existsSync(filePath)) {
+          try {
+            if (fs.statSync(filePath).size > 50) {
+              const img = nativeImage.createFromPath(filePath)
+              if (!img.isEmpty()) {
+                return resize ? img.resize({ width: 16, height: 16 }) : img
+              }
+            }
+          } catch {}
+        }
+        return null
+      }
+
+      // Priority 1: PNG resized to 16x16 (highest fidelity and reliable alpha on Windows Tray)
+      let icon = tryImage(pngPath, true) ||
+                 tryImage(path.join(resPath, 'icon.png'), true) ||
+                 tryImage(path.join(appPath, 'build', 'icon.png'), true) ||
+                 tryImage(path.resolve('build', 'icon.png'), true) ||
+                 tryImage(path.join(appPath, 'public', 'ExiliumAppIcon.png'), true)
+
+      // Priority 2: ICO without resize
+      if (!icon) {
+        icon = tryImage(icoPath, false) ||
+               tryImage(path.join(resPath, 'icon.ico'), false) ||
+               tryImage(path.join(appPath, 'build', 'icon.ico'), false) ||
+               tryImage(path.resolve('build', 'icon.ico'), false)
       }
 
       const isDev = isDevBuild()
       const title = isDev ? 'Exilium Switch [DEV BUILD] (by Nostro)' : 'Exilium Switch — Resident Shield (by Nostro)'
 
-      this.tray = new Tray(icon)
+      if (icon && !icon.isEmpty()) {
+        this.tray = new Tray(icon)
+      } else if (fs.existsSync(icoPath)) {
+        this.tray = new Tray(icoPath)
+      } else {
+        const fallback = path.join(resPath, 'icon.ico')
+        this.tray = new Tray(fallback)
+      }
+
       this.tray.setToolTip(title)
 
       const showWindow = () => {

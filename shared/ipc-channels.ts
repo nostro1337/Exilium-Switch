@@ -15,6 +15,7 @@ export const IPC_CHANNELS = {
   IMPORT_VLESS_LINK: 'import-vless-link',
   SELECT_PROFILE: 'select-profile',
   DELETE_PROFILE: 'delete-profile',
+  PROFILES_CLEAR_ALL: 'profiles:clear-all',
 
   // Audit & Telemetry
   RUN_SYSTEM_AUDIT: 'run-system-audit',

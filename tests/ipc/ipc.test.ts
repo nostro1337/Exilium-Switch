@@ -21,7 +21,7 @@ vi.mock('electron', () => {
     app: {
       getPath: vi.fn(() => 'C:\\MockAppData'),
       getAppPath: vi.fn(() => 'C:\\MockAppPath'),
-      getVersion: vi.fn(() => '1.5.4'),
+      getVersion: vi.fn(() => '1.5.5'),
       quit: vi.fn()
     }
   }

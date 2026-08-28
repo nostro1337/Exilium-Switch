@@ -37,19 +37,39 @@ interface ChangelogItem {
 
 const CHANGELOG_DATA: ChangelogItem[] = [
   {
+    version: '1.5.5',
+    date: '28.08.2026',
+    highlights: [
+      {
+        icon: 'sparkles',
+        title: 'Сквозная динамическая синхронизация версий',
+        desc: 'Центр обновлений автоматически считывает актуальную версию из Electron runtime без статичной привязки.'
+      },
+      {
+        icon: 'shield',
+        title: 'Нативный рендеринг иконки в системном трее Windows',
+        desc: 'Оптимизированный многоуровневый алгоритм загрузки 16x16 PNG/ICO с аппаратной валидацией альфа-канала.'
+      },
+      {
+        icon: 'check',
+        title: 'Очистка тестовых профилей и чистота папки Configs',
+        desc: 'Удалены устаревшие тестовые конфигурации и автосидинг; оставлен единый чистый шаблон для удобства.'
+      },
+      {
+        icon: 'sparkles',
+        title: 'Массовое удаление профилей (Clear All)',
+        desc: 'В менеджер профилей добавлена кнопка быстрой очистки всех конфигураций с подтверждением действия.'
+      }
+    ]
+  },
+  {
     version: '1.5.4',
     date: '28.08.2026',
-    isCurrent: true,
     highlights: [
       {
         icon: 'shield',
         title: 'Гарантированный запуск от Администратора (UAC Elevation)',
         desc: 'Встроен манифест requireAdministrator для надежного управления системными службами (lfsvc), часовыми поясами и сетевым стеком.'
-      },
-      {
-        icon: 'sparkles',
-        title: 'Нативный рендеринг системного трея и иконок',
-        desc: 'Исправлена отрисовка ICO в системном трее Windows и Start Menu ярлыках без деструктивного сжатия.'
       },
       {
         icon: 'check',
@@ -58,15 +78,14 @@ const CHANGELOG_DATA: ChangelogItem[] = [
       },
       {
         icon: 'sparkles',
-        title: 'Изоляция профилей Home / Office и авто-сидинг',
-        desc: 'Строгое разделение активных профилей по режимам и автоматическое создание корпоративного профиля Aviabasa.'
+        title: 'Изоляция профилей Home / Office',
+        desc: 'Строгое разделение активных профилей по режимам работы без пересечения данных.'
       }
     ]
   },
   {
     version: '1.5.3',
     date: '28.08.2026',
-    isCurrent: false,
     highlights: [
       {
         icon: 'sparkles',
@@ -196,6 +215,7 @@ const CHANGELOG_DATA: ChangelogItem[] = [
 ]
 
 export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion, onClose }) => {
+  const [displayVersion, setDisplayVersion] = useState(currentVersion || '1.5.5')
   const [state, setState] = useState<UpdateState>('idle')
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [progress, setProgress] = useState<UpdateProgress>({
@@ -205,6 +225,14 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion
     total: 0
   })
   const [errorMessage, setErrorMessage] = useState<string>('')
+
+  useEffect(() => {
+    if (isOpen) {
+      window.electronAPI?.getAppVersion().then((v) => {
+        if (v) setDisplayVersion(v)
+      }).catch(() => {})
+    }
+  }, [isOpen, currentVersion])
 
   const checkForUpdates = async () => {
     setState('checking')
@@ -329,7 +357,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion
                 </span>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-base font-bold text-white font-mono">
-                    v{currentVersion}
+                    v{displayVersion}
                   </span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/10 text-zinc-300 border border-white/15 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3 text-white" />
@@ -423,45 +451,48 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion
             </div>
 
             <div className="space-y-3">
-              {CHANGELOG_DATA.map((item) => (
-                <div
-                  key={item.version}
-                  className={`p-3.5 rounded-xl border transition-all ${
-                    item.isCurrent
-                      ? 'bg-white/[0.04] border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.05)]'
-                      : 'bg-white/[0.02] border-white/[0.08]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2.5">
-                    <div className="flex items-center gap-2">
-                      <Tag className="w-3.5 h-3.5 text-zinc-400" />
-                      <span className="text-xs font-bold text-white font-mono">
-                        v{item.version}
-                      </span>
-                      {item.isCurrent && (
-                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/10 text-white border border-white/20">
-                          Текущая
+              {CHANGELOG_DATA.map((item, idx) => {
+                const isCurrent = item.version === displayVersion || (!CHANGELOG_DATA.some(x => x.version === displayVersion) && idx === 0)
+                return (
+                  <div
+                    key={item.version}
+                    className={`p-3.5 rounded-xl border transition-all ${
+                      isCurrent
+                        ? 'bg-white/[0.04] border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.05)]'
+                        : 'bg-white/[0.02] border-white/[0.08]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-3.5 h-3.5 text-zinc-400" />
+                        <span className="text-xs font-bold text-white font-mono">
+                          v{item.version}
                         </span>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-zinc-500 font-mono">{item.date}</span>
-                  </div>
-
-                  <div className="space-y-2">
-                    {item.highlights.map((h, idx) => (
-                      <div key={idx} className="text-xs">
-                        <div className="font-semibold text-zinc-200 flex items-center gap-1.5">
-                          <span className="w-1 h-1 rounded-full bg-white inline-block" />
-                          <span>{h.title}</span>
-                        </div>
-                        <p className="text-[11px] text-zinc-400 mt-0.5 leading-relaxed pl-2.5">
-                          {h.desc}
-                        </p>
+                        {isCurrent && (
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-white border border-white/20">
+                            Текущая
+                          </span>
+                        )}
                       </div>
-                    ))}
+                      <span className="text-[10px] text-zinc-500 font-mono">{item.date}</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {item.highlights.map((h, hIdx) => (
+                        <div key={hIdx} className="text-xs">
+                          <div className="font-semibold text-zinc-200 flex items-center gap-1.5">
+                            <span className="w-1 h-1 rounded-full bg-white inline-block" />
+                            <span>{h.title}</span>
+                          </div>
+                          <p className="text-[11px] text-zinc-400 mt-0.5 leading-relaxed pl-2.5">
+                            {h.desc}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 

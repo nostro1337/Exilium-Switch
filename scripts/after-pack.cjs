@@ -8,7 +8,7 @@ exports.default = async function (context) {
   const appOutDir = context.appOutDir;
   const exePath = path.join(appOutDir, 'Exilium Switch.exe');
   const iconPath = path.resolve(__dirname, '../build/icon.ico');
-  const version = context.packager?.appInfo?.version || '1.5.4';
+  const version = context.packager?.appInfo?.version || '1.5.5';
 
   // Ensure app-update.yml exists in resources
   const updateYmlSource = path.resolve(__dirname, '../build/app-update.yml');
@@ -25,12 +25,6 @@ exports.default = async function (context) {
   const iconPngSrc = path.resolve(__dirname, '../build/icon.png');
   if (fs.existsSync(iconIcoSrc)) fs.copyFileSync(iconIcoSrc, path.join(resDir, 'icon.ico'));
   if (fs.existsSync(iconPngSrc)) fs.copyFileSync(iconPngSrc, path.join(resDir, 'icon.png'));
-
-  // Ensure Configs/work_aviabasa.json exists in resources
-  const configsDir = path.join(resDir, 'Configs');
-  if (!fs.existsSync(configsDir)) fs.mkdirSync(configsDir, { recursive: true });
-  const aviabasaSrc = path.resolve(__dirname, '../Configs/work_aviabasa.json');
-  if (fs.existsSync(aviabasaSrc)) fs.copyFileSync(aviabasaSrc, path.join(configsDir, 'work_aviabasa.json'));
 
   // Find rcedit-x64.exe
   let rceditPath = null;
