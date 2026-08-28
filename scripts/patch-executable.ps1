@@ -1,5 +1,9 @@
+param(
+    [string]$TargetDir = "release/DevBuild/win-unpacked"
+)
+
 $rcedit = "C:\Users\Nostro\AppData\Local\electron-builder\Cache\winCodeSign\178917387\rcedit-x64.exe"
-$exe = Join-Path $PSScriptRoot "..\release\win-unpacked\Exilium Switch.exe"
+$exe = Join-Path $PSScriptRoot "..\$TargetDir\Exilium Switch.exe"
 $icon = Join-Path $PSScriptRoot "..\build\icon.ico"
 
 if (-not (Test-Path $rcedit)) {
@@ -13,7 +17,7 @@ $appVersion = $pkg.version
 
 # Ensure app-update.yml exists in resources
 $updateYmlSource = Join-Path $PSScriptRoot "..\build\app-update.yml"
-$updateYmlDest = Join-Path $PSScriptRoot "..\release\win-unpacked\resources\app-update.yml"
+$updateYmlDest = Join-Path $PSScriptRoot "..\$TargetDir\resources\app-update.yml"
 if (Test-Path $updateYmlSource) {
     $resDir = Split-Path $updateYmlDest -Parent
     if (-not (Test-Path $resDir)) { New-Item -ItemType Directory -Path $resDir -Force | Out-Null }

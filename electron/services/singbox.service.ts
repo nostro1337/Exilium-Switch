@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { execFileAsync } from '../utils/exec'
 import { LogService } from './log.service'
 import { ProfileService } from './profile.service'
@@ -10,6 +11,9 @@ import { ResidentShieldService } from './resident-shield.service'
 import { NotificationService } from './notification.service'
 import { StateMachine } from '../core/state-machine'
 import type { VpnStatus } from '../../shared/types'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 export class SingBoxService {
   private static instance: SingBoxService

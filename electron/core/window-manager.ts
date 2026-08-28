@@ -1,9 +1,13 @@
 import { app, BrowserWindow } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { ensureCachedIcons } from '../utils/paths'
 import { SettingsService } from '../services/settings.service'
 import { LogService } from '../services/log.service'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 export class WindowManager {
   private static instance: WindowManager

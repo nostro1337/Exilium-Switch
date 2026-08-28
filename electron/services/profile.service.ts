@@ -1,11 +1,15 @@
 import { app } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { getProfilesDir } from '../utils/paths'
 import { convertVlessToSingBoxConfig } from '../utils/vless-parser'
 import { SettingsService } from './settings.service'
 import { LogService } from './log.service'
 import type { AppMode, ConfigProfile } from '../../shared/types'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 export class ProfileService {
   private static instance: ProfileService
