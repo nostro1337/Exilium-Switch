@@ -5,6 +5,12 @@ import { useSettings } from '../../src/hooks/useSettings'
 import { useLogs } from '../../src/hooks/useLogs'
 import type { VpnStatus, AppSettings, LogEntry } from '../../shared/types'
 
+declare global {
+  interface Window {
+    electronAPI: any
+  }
+}
+
 describe('React Custom Hooks (Renderer Process)', () => {
   beforeEach(() => {
     // Setup window.electronAPI mock

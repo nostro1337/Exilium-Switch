@@ -26,6 +26,7 @@ logs/
 WorkPC_Audit_*
 OfficeTest/
 FriendIncident/
+docs/incidents/
 !README.md
 
 # OS & Editor Files
