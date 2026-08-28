@@ -62,11 +62,22 @@ export class NotificationService {
         })
 
         notif.on('click', () => {
-          const mainWindow = this.getMainWindow ? this.getMainWindow() : null
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            if (mainWindow.isMinimized()) mainWindow.restore()
-            if (!mainWindow.isVisible()) mainWindow.show()
-            mainWindow.focus()
+          try {
+            const mainWindow = this.getMainWindow ? this.getMainWindow() : null
+            if (mainWindow) {
+              if (typeof (mainWindow as any).isDestroyed === 'function' && (mainWindow as any).isDestroyed()) {
+                return
+              }
+              if (typeof (mainWindow as any).showAndFocus === 'function') {
+                (mainWindow as any).showAndFocus()
+              } else {
+                if (mainWindow.isMinimized()) mainWindow.restore()
+                if (!mainWindow.isVisible()) mainWindow.show()
+                mainWindow.focus()
+              }
+            }
+          } catch (e) {
+            console.error('[Notification Click Error]', e)
           }
         })
 

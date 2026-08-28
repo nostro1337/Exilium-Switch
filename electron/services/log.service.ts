@@ -63,15 +63,15 @@ export class LogService {
 
   public parseSingBoxLine(rawLine: string): LogEntry {
     const line = rawLine.trim()
+    const lower = line.toLowerCase()
     let type: LogType = 'info'
-
-    if (line.includes('ERROR') || line.includes('FATAL') || line.includes('[ERR]') || line.includes('panic:')) {
+    if (line.includes('ERROR') || line.includes('FATAL') || line.includes('[ERR]') || lower.includes('panic:')) {
       type = 'error'
     } else if (line.includes('WARN') || line.includes('[WARN]')) {
       type = 'warn'
     } else if (line.includes('DEBUG') || line.includes('TRACE')) {
       type = 'dev'
-    } else if (line.includes('started') || line.includes('connected') || line.includes('ready')) {
+    } else if (lower.includes('started') || lower.includes('connected') || lower.includes('ready')) {
       type = 'success'
     }
 

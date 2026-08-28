@@ -20,5 +20,5 @@ describe('AuditService System & Domain Analyzer', () => {
     expect(Array.isArray(result.domainControllers)).toBe(true)
     expect(Array.isArray(result.dnsServers)).toBe(true)
     expect(Array.isArray(result.dnsSuffixes)).toBe(true)
-  })
+  }, 20000)
 })

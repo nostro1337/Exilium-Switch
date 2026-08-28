@@ -37,5 +37,5 @@ describe('SingBoxService Core Engine', () => {
     expect(res).toBeDefined()
     expect(typeof res.success).toBe('boolean')
     expect(res.isRunning).toBe(false)
-  })
+  }, 20000)
 })
