@@ -56,35 +56,53 @@ export function ensureCachedIcons(): { icoPath: string; pngPath: string } {
     const appPath = (app && typeof app.getAppPath === 'function') ? app.getAppPath() : process.cwd()
     const resPath = process.resourcesPath || process.cwd()
 
-    if (!fs.existsSync(icoPath)) {
-      const candidates = [
-        path.join(appPath, 'assets', 'icons', 'ExiliumSwitchIcon.ico'),
-        path.join(appPath, 'build', 'icon.ico'),
-        path.join(resPath, 'assets', 'icons', 'ExiliumSwitchIcon.ico'),
-        path.join(resPath, 'icon.ico'),
-        path.resolve('assets', 'icons', 'ExiliumSwitchIcon.ico'),
-        path.resolve('build', 'icon.ico')
-      ]
-      for (const candidate of candidates) {
-        if (fs.existsSync(candidate)) {
-          fs.copyFileSync(candidate, icoPath)
-          break
-        }
+    const icoCandidates = [
+      path.join(resPath, 'icon.ico'),
+      path.join(resPath, 'assets', 'icons', 'ExiliumSwitchIcon.ico'),
+      path.join(resPath, 'assets', 'icons', 'ExiliumAppIcon.ico'),
+      path.join(resPath, 'build', 'icon.ico'),
+      path.join(appPath, 'build', 'icon.ico'),
+      path.join(appPath, 'assets', 'icons', 'ExiliumSwitchIcon.ico'),
+      path.join(appPath, 'assets', 'icons', 'ExiliumAppIcon.ico'),
+      path.resolve('build', 'icon.ico'),
+      path.resolve('assets', 'icons', 'ExiliumSwitchIcon.ico'),
+      path.resolve('assets', 'icons', 'ExiliumAppIcon.ico')
+    ]
+
+    let icoValid = fs.existsSync(icoPath) && fs.statSync(icoPath).size > 0
+    if (!icoValid) {
+      for (const candidate of icoCandidates) {
+        try {
+          if (fs.existsSync(candidate) && fs.statSync(candidate).size > 0) {
+            fs.copyFileSync(candidate, icoPath)
+            icoValid = true
+            break
+          }
+        } catch {}
       }
     }
 
-    if (!fs.existsSync(pngPath)) {
-      const candidates = [
-        path.join(appPath, 'build', 'icon.png'),
-        path.join(appPath, 'public', 'icon.png'),
-        path.join(resPath, 'icon.png'),
-        path.resolve('build', 'icon.png')
-      ]
-      for (const candidate of candidates) {
-        if (fs.existsSync(candidate)) {
-          fs.copyFileSync(candidate, pngPath)
-          break
-        }
+    const pngCandidates = [
+      path.join(resPath, 'icon.png'),
+      path.join(resPath, 'assets', 'icons', 'ExiliumAppIcon.png'),
+      path.join(resPath, 'build', 'icon.png'),
+      path.join(appPath, 'build', 'icon.png'),
+      path.join(appPath, 'public', 'ExiliumAppIcon.png'),
+      path.join(appPath, 'dist', 'assets', 'ExiliumAppIcon.png'),
+      path.resolve('build', 'icon.png'),
+      path.resolve('public', 'ExiliumAppIcon.png')
+    ]
+
+    let pngValid = fs.existsSync(pngPath) && fs.statSync(pngPath).size > 0
+    if (!pngValid) {
+      for (const candidate of pngCandidates) {
+        try {
+          if (fs.existsSync(candidate) && fs.statSync(candidate).size > 0) {
+            fs.copyFileSync(candidate, pngPath)
+            pngValid = true
+            break
+          }
+        } catch {}
       }
     }
   } catch (err) {

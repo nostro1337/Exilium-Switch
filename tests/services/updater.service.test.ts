@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 vi.mock('electron', () => ({
   app: {
-    getVersion: vi.fn(() => '1.5.2'),
+    getVersion: vi.fn(() => '1.5.3'),
     isPackaged: false
   },
   BrowserWindow: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock('electron-updater', () => {
       on: vi.fn((event: string, cb: Function) => {
         listeners[event] = cb
       }),
-      checkForUpdates: vi.fn(async () => ({ updateInfo: { version: '1.5.2' } })),
+      checkForUpdates: vi.fn(async () => ({ updateInfo: { version: '1.5.3' } })),
       downloadUpdate: vi.fn(async () => {}),
       quitAndInstall: vi.fn()
     }
@@ -52,5 +52,13 @@ describe('UpdaterService GitHub Releases Manager', () => {
     const res = await updaterService.downloadUpdate()
     expect(res).toBeDefined()
     expect(typeof res.success).toBe('boolean')
+  })
+
+  it('should format friendly error message for network and timeout errors', () => {
+    const timeoutMsg = updaterService.formatFriendlyError('net::ERR_CONNECTION_TIMED_OUT')
+    expect(timeoutMsg).toContain('Resident Shield')
+
+    const normalMsg = updaterService.formatFriendlyError('Some other error')
+    expect(normalMsg).toBe('Some other error')
   })
 })

@@ -22,6 +22,10 @@ describe('ProfileService Comprehensive Management', () => {
     expect(res.profile).toBeDefined()
     expect(res.profile?.name).toBe('Test-Auto-Import_HOME')
     expect(res.profile?.mode).toBe('home')
+
+    if (res.profile?.id) {
+      profileService.deleteProfile(res.profile.id)
+    }
   })
 
   it('should list profiles filtered by mode and retrieve active profile', () => {
@@ -46,5 +50,9 @@ describe('ProfileService Comprehensive Management', () => {
 
     const deleteRes = profileService.deleteProfile(profileId)
     expect(deleteRes.success).toBe(true)
+  })
+
+  it('should execute cleanTestSpamProfiles without throwing', () => {
+    expect(() => profileService.cleanTestSpamProfiles()).not.toThrow()
   })
 })

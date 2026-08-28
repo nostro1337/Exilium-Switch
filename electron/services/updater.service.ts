@@ -92,8 +92,9 @@ export class UpdaterService {
     })
 
     autoUpdater.on('error', (err) => {
-      logService.addLog(`[Updater] Ошибка модуля обновлений: ${err.message}`, 'warn')
-      this.getMainWindow?.()?.webContents.send(IPC_CHANNELS.UPDATER_ERROR, { message: err.message })
+      const friendlyMsg = this.formatFriendlyError(err.message)
+      logService.addLog(`[Updater] Ошибка модуля обновлений: ${friendlyMsg}`, 'warn')
+      this.getMainWindow?.()?.webContents.send(IPC_CHANNELS.UPDATER_ERROR, { message: friendlyMsg })
     })
 
     autoUpdater.on('download-progress', (progressObj) => {
@@ -128,6 +129,23 @@ export class UpdaterService {
     }
   }
 
+  public formatFriendlyError(rawError: string): string {
+    const lower = (rawError || '').toLowerCase()
+    if (
+      lower.includes('timed') ||
+      lower.includes('err_connection_timed_out') ||
+      lower.includes('err_network_changed') ||
+      lower.includes('err_name_not_resolved') ||
+      lower.includes('err_internet_disconnected') ||
+      lower.includes('enotfound') ||
+      lower.includes('econnrefused') ||
+      lower.includes('net::')
+    ) {
+      return 'Не удалось подключиться к серверу обновлений (GitHub). Для проверки и загрузки обновлений включите Resident Shield (VPN-соединение).'
+    }
+    return rawError
+  }
+
   public async checkForUpdates(): Promise<{ success: boolean; updateAvailable?: boolean; version?: string; error?: string }> {
     const logService = LogService.getInstance()
     try {
@@ -141,8 +159,9 @@ export class UpdaterService {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      logService.addLog(`[Updater] Ошибка при проверке обновлений: ${msg}`, 'warn')
-      return { success: false, error: msg }
+      const friendlyMsg = this.formatFriendlyError(msg)
+      logService.addLog(`[Updater] Ошибка при проверке обновлений: ${friendlyMsg}`, 'warn')
+      return { success: false, error: friendlyMsg }
     }
   }
 

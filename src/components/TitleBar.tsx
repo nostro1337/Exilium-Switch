@@ -21,7 +21,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   logsOpen,
   profilesOpen
 }) => {
-  const [version, setVersion] = React.useState('1.5.2')
+  const [version, setVersion] = React.useState('1.5.3')
   const [isDev, setIsDev] = React.useState(false)
 
   React.useEffect(() => {

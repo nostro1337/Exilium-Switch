@@ -37,9 +37,31 @@ interface ChangelogItem {
 
 const CHANGELOG_DATA: ChangelogItem[] = [
   {
-    version: '1.5.2',
+    version: '1.5.3',
     date: '28.08.2026',
     isCurrent: true,
+    highlights: [
+      {
+        icon: 'sparkles',
+        title: 'Автоматическая санация и защита от дубликатов профилей',
+        desc: 'Полная изоляция хранилища конфигураций. Автоматическое удаление паразитных тестовых профилей при запуске.'
+      },
+      {
+        icon: 'shield',
+        title: 'Надежная фиксация иконок приложения и трея',
+        desc: 'Прямое внедрение иконки в PE-ресурсы сборщика, расширенный поиск кэшированных ассетов и гарантированное отображение значка в трее и на ярлыках Windows.'
+      },
+      {
+        icon: 'check',
+        title: 'Информативные уведомления проверки обновлений',
+        desc: 'При отсутствии связи с GitHub без туннеля отображается понятная подсказка с рекомендацией включить Resident Shield (VPN).'
+      }
+    ]
+  },
+  {
+    version: '1.5.2',
+    date: '28.08.2026',
+    isCurrent: false,
     highlights: [
       {
         icon: 'shield',
@@ -161,9 +183,18 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion
     setState('checking')
     setErrorMessage('')
     try {
-      await window.electronAPI?.checkForUpdates()
+      const res = await window.electronAPI?.checkForUpdates()
+      if (res && !res.success && res.error) {
+        setErrorMessage(res.error)
+        setState('error')
+      }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Ошибка проверки обновлений')
+      const msg = err?.message || 'Ошибка проверки обновлений'
+      if (msg.includes('timed') || msg.includes('ERR_') || msg.includes('GitHub')) {
+        setErrorMessage('Не удалось подключиться к серверу обновлений (GitHub). Для проверки и загрузки обновлений включите Resident Shield (VPN-соединение).')
+      } else {
+        setErrorMessage(msg)
+      }
       setState('error')
     }
   }
@@ -293,9 +324,12 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion
 
             {/* Error banner */}
             {state === 'error' && errorMessage && (
-              <div className="mt-3 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span className="truncate">{errorMessage}</span>
+              <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-200 text-xs flex items-start gap-2.5 leading-relaxed">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+                <div className="flex-1">
+                  <span className="font-semibold block mb-0.5 text-amber-300">Внимание</span>
+                  <span>{errorMessage}</span>
+                </div>
               </div>
             )}
 

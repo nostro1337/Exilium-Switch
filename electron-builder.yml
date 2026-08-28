@@ -13,9 +13,18 @@ files:
   - dist-electron
   - build/icon.ico
   - build/icon.png
+  - assets/**
 extraResources:
   - from: "build/app-update.yml"
     to: "app-update.yml"
+  - from: "build/icon.ico"
+    to: "icon.ico"
+  - from: "build/icon.png"
+    to: "icon.png"
+  - from: "assets/icons/ExiliumSwitchIcon.ico"
+    to: "assets/icons/ExiliumSwitchIcon.ico"
+  - from: "assets/icons/ExiliumAppIcon.ico"
+    to: "assets/icons/ExiliumAppIcon.ico"
   - from: "sing-box"
     to: "sing-box"
     filter:

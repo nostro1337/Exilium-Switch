@@ -127,7 +127,7 @@ export function App() {
       {/* Update Center Modal */}
       <UpdateModal
         isOpen={updateModalOpen}
-        currentVersion="1.5.2"
+        currentVersion="1.5.3"
         onClose={() => setUpdateModalOpen(false)}
       />
     </div>

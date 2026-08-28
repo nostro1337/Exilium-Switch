@@ -79,7 +79,35 @@ export class ProfileService {
     } catch {}
   }
 
+  public cleanTestSpamProfiles(): void {
+    try {
+      const profilesDir = getProfilesDir()
+      if (!fs.existsSync(profilesDir)) return
+      const files = fs.readdirSync(profilesDir)
+      let cleaned = false
+      for (const file of files) {
+        if (
+          file.toLowerCase().startsWith('test-auto-import') ||
+          file.toLowerCase().startsWith('to-delete') ||
+          /test-auto-import.*\.json$/i.test(file)
+        ) {
+          try {
+            const fullPath = path.join(profilesDir, file)
+            fs.unlinkSync(fullPath)
+            const id = path.basename(file, '.json')
+            this.deleteMeta(id)
+            cleaned = true
+          } catch {}
+        }
+      }
+      if (cleaned) {
+        LogService.getInstance().addLog('Санация: тестовые профили успешно удалены из хранилища.', 'info')
+      }
+    } catch {}
+  }
+
   public getProfiles(filterMode?: AppMode): ConfigProfile[] {
+    this.cleanTestSpamProfiles()
     const profilesDir = getProfilesDir()
     const settingsService = SettingsService.getInstance()
     const settings = settingsService.loadSettings()

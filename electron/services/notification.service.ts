@@ -2,7 +2,7 @@ import { app, shell, Notification, BrowserWindow } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { APP_AUMID } from '../core/constants'
-import { getRealExePath, ensureCachedIcons } from '../utils/paths'
+import { getRealExePath, ensureCachedIcons, isDevBuild } from '../utils/paths'
 
 export class NotificationService {
   private static instance: NotificationService
@@ -24,24 +24,32 @@ export class NotificationService {
   public registerWindowsIntegration(): void {
     try {
       const exePath = getRealExePath()
-      const { icoPath } = ensureCachedIcons()
+      const { icoPath, pngPath } = ensureCachedIcons()
       const appData = (app && typeof app.getPath === 'function') ? app.getPath('appData') : (process.env.APPDATA || '.')
       const shortcutDir = path.join(appData, 'Microsoft', 'Windows', 'Start Menu', 'Programs')
       if (!fs.existsSync(shortcutDir)) {
         fs.mkdirSync(shortcutDir, { recursive: true })
       }
-      const shortcutPath = path.join(shortcutDir, 'Exilium Switch.lnk')
-      const iconTarget = fs.existsSync(icoPath) ? icoPath : exePath
+
+      const isDev = isDevBuild()
+      const shortcutName = isDev ? 'Exilium Switch (Dev).lnk' : 'Exilium Switch.lnk'
+      const shortcutPath = path.join(shortcutDir, shortcutName)
+      const iconTarget = (fs.existsSync(icoPath) && fs.statSync(icoPath).size > 0)
+        ? icoPath
+        : ((fs.existsSync(pngPath) && fs.statSync(pngPath).size > 0) ? pngPath : exePath)
+      const AUMID = isDev ? 'com.nostro.exiliumswitch.dev' : APP_AUMID
 
       const exists = fs.existsSync(shortcutPath)
-      shell.writeShortcutLink(shortcutPath, exists ? 'update' : 'create', {
-        target: exePath,
-        cwd: path.dirname(exePath),
-        description: 'Exilium Switch — Resident Shield (by Nostro)',
-        icon: iconTarget,
-        iconIndex: 0,
-        appUserModelId: APP_AUMID
-      })
+      if (shell && typeof shell.writeShortcutLink === 'function') {
+        shell.writeShortcutLink(shortcutPath, exists ? 'update' : 'create', {
+          target: exePath,
+          cwd: path.dirname(exePath),
+          description: `Exilium Switch — Resident Shield (by Nostro)${isDev ? ' [DEV]' : ''}`,
+          icon: iconTarget,
+          iconIndex: 0,
+          appUserModelId: AUMID
+        })
+      }
     } catch (err) {
       console.error('registerWindowsIntegration error:', err)
     }
