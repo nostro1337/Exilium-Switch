@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   convertVlessToSingBoxConfig,
   RUSSIAN_AND_CIS_DOMAINS,
-  DISCORD_DOMAINS
+  DISCORD_DOMAINS,
+  STREAMING_AND_AI_DOMAINS
 } from '../../electron/utils/vless-parser'
 
 describe('VLESS Parser & Config Generator Engine', () => {
@@ -98,5 +99,7 @@ describe('VLESS Parser & Config Generator Engine', () => {
     expect(RUSSIAN_AND_CIS_DOMAINS).toContain('gosuslugi.ru')
     expect(DISCORD_DOMAINS).toContain('discord.com')
     expect(DISCORD_DOMAINS).toContain('discord.gg')
+    expect(STREAMING_AND_AI_DOMAINS).toContain('youtube.com')
+    expect(STREAMING_AND_AI_DOMAINS).toContain('generativelanguage.googleapis.com')
   })
 })

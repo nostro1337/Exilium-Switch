@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { ensureCachedIcons } from '../utils/paths'
 import { SettingsService } from '../services/settings.service'
 import { LogService } from '../services/log.service'
+import { IPC_CHANNELS } from '../../shared/ipc-channels'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -74,14 +75,24 @@ export class WindowManager {
       center: true,
       icon: iconFile,
       backgroundColor: '#09090b',
-      resizable: false,
-      maximizable: false,
+      paintWhenInitiallyHidden: true,
+      resizable: true,
+      maximizable: true,
       webPreferences: {
         preload: preloadPath,
         nodeIntegration: false,
         contextIsolation: true,
-        sandbox: false
+        sandbox: false,
+        backgroundThrottling: false
       }
+    })
+
+    this.mainWindow.on('maximize', () => {
+      this.mainWindow?.webContents.send(IPC_CHANNELS.WINDOW_MAXIMIZED_CHANGED, true)
+    })
+
+    this.mainWindow.on('unmaximize', () => {
+      this.mainWindow?.webContents.send(IPC_CHANNELS.WINDOW_MAXIMIZED_CHANGED, false)
     })
 
     this.mainWindow.once('ready-to-show', () => {

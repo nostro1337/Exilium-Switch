@@ -37,6 +37,42 @@ interface ChangelogItem {
 
 const CHANGELOG_DATA: ChangelogItem[] = [
   {
+    version: '1.5.6',
+    date: '28.08.2026',
+    highlights: [
+      {
+        icon: 'sparkles',
+        title: 'Свободное масштабирование и управление окном',
+        desc: 'Добавлена возможность ручного изменения размера окна, кнопка развертывания (Maximize/Restore) и адаптивное пропорциональное масштабирование всех интерфейсных модулей.'
+      },
+      {
+        icon: 'zap',
+        title: 'Строжайшая плавность 60+ FPS и аппаратное ускорение',
+        desc: 'Внедрен аппаратный слой рендеринга Chromium GPU, оптимизированы физические пружинные анимации Framer Motion и отключен фоновый троттлинг.'
+      },
+      {
+        icon: 'shield',
+        title: 'Усиленная блокировка службы геолокации (lfsvc)',
+        desc: 'Исправлена проблема повторного включения службы: автозапуск lfsvc отключается на уровне диспетчера служб Windows и реестра, предотвращая утечку координат.'
+      },
+      {
+        icon: 'check',
+        title: 'Стабильная маршрутизация Discord, YouTube и Gemini/AI',
+        desc: 'Оптимизирован сетевой стек Wintun, устранены DNS-зависания, расширен список доменов и добавлена поддержка голосовых серверов Discord и Google AI API.'
+      },
+      {
+        icon: 'check',
+        title: 'Кристальная четкость текста и векторных иконок',
+        desc: 'Полностью устранен эффект размытия («мыла»). Оптимизирован рендеринг шрифтов, убраны тяжелые растровые фильтры, повышена контрастность и четкость всех иконок.'
+      },
+      {
+        icon: 'shield',
+        title: 'Защита от спам-кликов и аварийное восстановление',
+        desc: 'Все кнопки блокируются во время выполнения асинхронных операций; внедрен мгновенный откат часового пояса и сетевого стека при сбоях и аварийном закрытии.'
+      }
+    ]
+  },
+  {
     version: '1.5.5',
     date: '28.08.2026',
     highlights: [
@@ -182,40 +218,13 @@ const CHANGELOG_DATA: ChangelogItem[] = [
         icon: 'sparkles',
         title: 'Умный VLESS-конвертер',
         desc: 'Импорт ссылки vless:// с автоматической сборкой правил маршрутизации под выбранный режим и присвоением суффиксов _OFFICE / _HOME.'
-      },
-      {
-        icon: 'center',
-        title: 'Интерактивный Центр обновлений',
-        desc: 'Кликабельный заголовок версии, просмотр истории версий и прямая ручная проверка релизов с GitHub.'
-      }
-    ]
-  },
-  {
-    version: '1.4.3',
-    date: '25.08.2026',
-    highlights: [
-      {
-        icon: 'check',
-        title: 'Стабильность ядра',
-        desc: 'Оптимизирована фоновая проверка статуса sing-box, тихий откат адаптера при непредвиденном завершении.'
-      }
-    ]
-  },
-  {
-    version: '1.4.0',
-    date: '20.08.2026',
-    highlights: [
-      {
-        icon: 'check',
-        title: 'Real-IP Split DNS & VLESS Reality',
-        desc: 'Поддержка профилей VLESS с маскировкой Reality и перенаправлением трафика Discord/Telegram.'
       }
     ]
   }
 ]
 
 export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion, onClose }) => {
-  const [displayVersion, setDisplayVersion] = useState(currentVersion || '1.5.5')
+  const [displayVersion, setDisplayVersion] = useState(currentVersion || '1.5.6')
   const [state, setState] = useState<UpdateState>('idle')
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [progress, setProgress] = useState<UpdateProgress>({
@@ -225,6 +234,8 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion
     total: 0
   })
   const [errorMessage, setErrorMessage] = useState<string>('')
+  const [isRestarting, setIsRestarting] = useState(false)
+  const [downloadStarting, setDownloadStarting] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -254,6 +265,35 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion
     }
   }
 
+  const handleStartDownload = async () => {
+    if (downloadStarting || state === 'downloading') return
+    setDownloadStarting(true)
+    setState('downloading')
+    try {
+      const res = await window.electronAPI?.startUpdateDownload()
+      if (!res?.success) {
+        setErrorMessage(res?.error || 'Ошибка начала загрузки')
+        setState('error')
+      }
+    } finally {
+      setDownloadStarting(false)
+    }
+  }
+
+  const handleRestartNow = () => {
+    if (isRestarting) return
+    setIsRestarting(true)
+    window.electronAPI?.quitAndInstallUpdate()
+  }
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 Б'
+    const k = 1024
+    const sizes = ['Б', 'КБ', 'МБ', 'ГБ']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
+  }
+
   useEffect(() => {
     const unsubChecking = window.electronAPI?.onUpdateChecking(() => {
       setState('checking')
@@ -281,6 +321,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion
     const unsubError = window.electronAPI?.onUpdateError((err) => {
       setErrorMessage(err.message || 'Не удалось проверить или скачать обновление')
       setState('error')
+      setDownloadStarting(false)
     })
 
     return () => {
@@ -295,33 +336,12 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion
 
   if (!isOpen) return null
 
-  const handleStartDownload = async () => {
-    setState('downloading')
-    const res = await window.electronAPI?.startUpdateDownload()
-    if (!res?.success) {
-      setErrorMessage(res?.error || 'Ошибка начала загрузки')
-      setState('error')
-    }
-  }
-
-  const handleRestartNow = () => {
-    window.electronAPI?.quitAndInstallUpdate()
-  }
-
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 Б'
-    const k = 1024
-    const sizes = ['Б', 'КБ', 'МБ', 'ГБ']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
-  }
-
   return (
     <AnimatePresence>
       <div 
         className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm select-none cursor-default"
         onClick={() => {
-          if (state !== 'downloading') onClose()
+          if (state !== 'downloading' && !isRestarting) onClose()
         }}
       >
         <motion.div
@@ -338,14 +358,13 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion
               <Sparkles className="w-4 h-4 text-zinc-300" strokeWidth={2} />
               <span>Центр обновлений Exilium Switch</span>
             </div>
-            {state !== 'downloading' && (
-              <button
-                onClick={onClose}
-                className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" strokeWidth={2} />
-              </button>
-            )}
+            <button
+              onClick={onClose}
+              disabled={state === 'downloading' || isRestarting}
+              className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-40"
+            >
+              <X className="w-4 h-4" strokeWidth={2} />
+            </button>
           </div>
 
           {/* Version Status Card */}
@@ -369,7 +388,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion
               <button
                 type="button"
                 onClick={checkForUpdates}
-                disabled={state === 'checking' || state === 'downloading'}
+                disabled={state === 'checking' || state === 'downloading' || downloadStarting || isRestarting}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-black hover:bg-zinc-200 active:scale-95 disabled:opacity-50 transition-all cursor-pointer flex items-center gap-1.5 shadow-[0_0_12px_rgba(255,255,255,0.2)]"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${state === 'checking' ? 'animate-spin' : ''}`} />
@@ -397,10 +416,11 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion
                 </div>
                 <button
                   onClick={handleStartDownload}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-black hover:bg-zinc-200 active:scale-95 transition-all cursor-pointer flex items-center gap-1"
+                  disabled={downloadStarting || isRestarting}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-black hover:bg-zinc-200 active:scale-95 disabled:opacity-50 transition-all cursor-pointer flex items-center gap-1"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Скачать</span>
+                  <Download className={`w-3.5 h-3.5 ${downloadStarting ? 'animate-bounce' : ''}`} />
+                  <span>{downloadStarting ? 'Запуск...' : 'Скачать'}</span>
                 </button>
               </div>
             )}

@@ -7,11 +7,14 @@ vi.mock('electron', () => {
   class MockBrowserWindow {
     public isDestroyed = vi.fn(() => false)
     public isMinimized = vi.fn(() => true)
+    public isMaximized = vi.fn(() => false)
     public isVisible = vi.fn(() => false)
     public show = vi.fn()
     public focus = vi.fn()
     public restore = vi.fn()
     public minimize = vi.fn()
+    public maximize = vi.fn()
+    public unmaximize = vi.fn()
     public hide = vi.fn()
     public close = vi.fn()
     public destroy = vi.fn()
@@ -56,7 +59,7 @@ vi.mock('electron', () => {
     app: {
       getPath: vi.fn(() => 'C:\\MockAppData'),
       getAppPath: vi.fn(() => 'C:\\MockAppPath'),
-      getVersion: vi.fn(() => '1.5.5'),
+      getVersion: vi.fn(() => '1.5.6'),
       quit: vi.fn()
     }
   }
@@ -88,6 +91,14 @@ describe('WindowManager & TrayManager Full Lifecycle', () => {
     windowManager.showAndFocus()
     expect(win.show).toHaveBeenCalled()
     expect(win.focus).toHaveBeenCalled()
+
+    // Trigger maximize and unmaximize
+    if (eventListeners['on:maximize']) {
+      eventListeners['on:maximize']()
+    }
+    if (eventListeners['on:unmaximize']) {
+      eventListeners['on:unmaximize']()
+    }
 
     // Trigger close when app is quitting
     windowManager.setQuitting(true)

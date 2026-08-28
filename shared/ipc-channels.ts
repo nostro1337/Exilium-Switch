@@ -43,6 +43,9 @@ export const IPC_CHANNELS = {
 
   // Window
   WINDOW_MINIMIZE: 'window-minimize',
+  WINDOW_TOGGLE_MAXIMIZE: 'window-toggle-maximize',
+  WINDOW_IS_MAXIMIZED: 'window-is-maximized',
+  WINDOW_MAXIMIZED_CHANGED: 'window-maximized-changed',
   WINDOW_CLOSE: 'window-close'
 } as const
 

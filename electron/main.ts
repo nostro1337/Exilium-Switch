@@ -10,8 +10,17 @@ import { UpdaterService } from './services/updater.service'
 import { LogService } from './services/log.service'
 import { SettingsService } from './services/settings.service'
 import { ensureCachedIcons, isDevBuild } from './utils/paths'
+import { ResidentShieldService } from './services/resident-shield.service'
 import { registerAllIpcHandlers } from './ipc'
 import { IPC_CHANNELS } from '../shared/ipc-channels'
+
+// ============================================================
+// Hardware Acceleration & High-Performance Rendering Flags
+// ============================================================
+app.commandLine.appendSwitch('enable-gpu-rasterization')
+app.commandLine.appendSwitch('enable-zero-copy')
+app.commandLine.appendSwitch('ignore-gpu-blocklist')
+app.commandLine.appendSwitch('enable-smooth-scrolling')
 
 // ============================================================
 // Environment & App Data Isolation (Dev vs Production)
@@ -31,6 +40,40 @@ try {
     app.setPath('userData', path.join(baseAppData, isDev ? 'ExiliumSwitch-Dev' : 'ExiliumSwitch'))
   }
 } catch {}
+
+// ============================================================
+// Crash & Emergency Shutdown Handlers (Instant Network/Tz Rollback)
+// ============================================================
+const performEmergencyCleanup = () => {
+  try {
+    const settings = SettingsService.getInstance().loadSettings()
+    const realZone = settings.realZone || 'Tomsk Standard Time'
+    ResidentShieldService.getInstance().syncEmergencyCleanup(realZone)
+  } catch {}
+}
+
+process.on('uncaughtException', (err) => {
+  try {
+    LogService.getInstance().addLog(`Критическое исключение: ${err.message}`, 'error')
+  } catch {}
+  performEmergencyCleanup()
+})
+
+process.on('unhandledRejection', (reason) => {
+  try {
+    LogService.getInstance().addLog(`Необработанный промис: ${String(reason)}`, 'error')
+  } catch {}
+})
+
+process.on('SIGINT', () => {
+  performEmergencyCleanup()
+  app.quit()
+})
+
+process.on('SIGTERM', () => {
+  performEmergencyCleanup()
+  app.quit()
+})
 
 // ============================================================
 // Single Instance Lock (Scoped to userData directory)
@@ -104,6 +147,7 @@ app.whenReady().then(async () => {
 // ============================================================
 app.on('before-quit', () => {
   WindowManager.getInstance().setQuitting(true)
+  performEmergencyCleanup()
 })
 
 app.on('window-all-closed', () => {

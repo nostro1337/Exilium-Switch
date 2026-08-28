@@ -85,26 +85,26 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center pt-1 pb-2 relative select-none">
+    <div className="flex flex-col items-center justify-center pt-2 pb-2 relative select-none w-full">
       {/* 3-Position Mode Switcher + Auto-Diagnosis Button */}
-      <div className="flex items-center justify-between w-full max-w-[340px] px-2 mt-2.5 mb-6 gap-2">
+      <div className="flex items-center justify-between w-full max-w-[340px] px-2 mt-5 mb-8 gap-2">
         {/* Mode Segmented Controls */}
         <div className="flex items-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.08] gap-1 flex-1">
           {/* Дом */}
           <button
             type="button"
             onClick={() => onSelectMode('home')}
-            disabled={isRunning}
+            disabled={isRunning || loading}
             title={isRunning ? 'Отключите туннель для смены режима' : 'Режим «Дом» — полная маскировка под Амстердам'}
             className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-lg text-xs font-medium transition-all ${
-              isRunning ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
+              (isRunning || loading) ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
             } ${
               currentMode === 'home'
                 ? 'bg-white text-black font-semibold shadow-[0_0_12px_rgba(255,255,255,0.3)]'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
             }`}
           >
-            <Home className="w-3.5 h-3.5" />
+            <Home className="w-3.5 h-3.5" strokeWidth={1.8} />
             <span>Дом</span>
           </button>
 
@@ -112,17 +112,17 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
           <button
             type="button"
             onClick={() => onSelectMode('office')}
-            disabled={isRunning}
+            disabled={isRunning || loading}
             title={isRunning ? 'Отключите туннель для смены режима' : 'Режим «Офис» — безопасный сплит-туннель для корпоративной сети'}
             className={`flex-1 flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-lg text-xs font-medium transition-all ${
-              isRunning ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
+              (isRunning || loading) ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
             } ${
               currentMode === 'office'
                 ? 'bg-white text-black font-semibold shadow-[0_0_12px_rgba(255,255,255,0.3)]'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
             }`}
           >
-            <Briefcase className="w-3.5 h-3.5" />
+            <Briefcase className="w-3.5 h-3.5" strokeWidth={1.8} />
             <span>Офис</span>
           </button>
 
@@ -133,10 +133,10 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
               disabled
               className="w-full flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-lg text-xs font-medium text-zinc-600 opacity-40 cursor-not-allowed"
             >
-              <Gamepad2 className="w-3.5 h-3.5" />
+              <Gamepad2 className="w-3.5 h-3.5" strokeWidth={1.8} />
               <span>Игры</span>
             </button>
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:flex px-2 py-0.5 bg-zinc-900 border border-white/15 text-[9px] text-zinc-400 rounded whitespace-nowrap z-50 pointer-events-none shadow-lg">
+            <div className="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover:flex px-2 py-0.5 bg-zinc-900 border border-white/20 text-[9px] font-mono text-zinc-300 rounded whitespace-nowrap z-50 pointer-events-none shadow-xl">
               В разработке
             </div>
           </div>
@@ -146,10 +146,13 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
         <button
           type="button"
           onClick={onOpenDiagnosis}
+          disabled={loading || isRunning}
           title="Авто-диагностика устройства и выбор режима"
-          className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white border border-white/[0.08] hover:border-white/20 transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 shadow-sm"
+          className={`p-2 rounded-xl bg-white/[0.04] text-zinc-400 border border-white/[0.08] transition-all flex items-center justify-center shrink-0 shadow-sm ${
+            loading || isRunning ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/[0.08] hover:text-white hover:border-white/20 cursor-pointer active:scale-95'
+          }`}
         >
-          <ScanSearch className="w-4 h-4" />
+          <ScanSearch className="w-4 h-4" strokeWidth={1.8} />
         </button>
       </div>
 
@@ -213,13 +216,13 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
             ) : (
               <Power className={`w-10 h-10 transition-all duration-300 ${
                 isRunning 
-                  ? 'text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.85)]' 
+                  ? 'text-white icon-glow-white' 
                   : 'text-zinc-500 hover:text-zinc-300'
               }`} strokeWidth={2} />
             )}
 
             <span className={`text-[10px] font-bold tracking-[0.12em] uppercase mt-2.5 font-mono text-center block w-full transition-colors duration-300 ${
-              isRunning ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]' : 'text-zinc-500'
+              isRunning ? 'text-white glow-white' : 'text-zinc-500'
             }`}>
               {loading ? 'СВЯЗЬ...' : isRunning ? 'ВКЛЮЧЕНО' : 'ВЫКЛЮЧЕНО'}
             </span>
@@ -252,12 +255,12 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
         {activeProfileName ? (
           <button
             onClick={onOpenProfiles}
-            disabled={isRunning}
+            disabled={isRunning || loading}
             title={isRunning ? 'Отключите туннель для смены профиля' : 'Нажмите для смены профиля'}
             className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono border transition-all ${
-              isRunning
-                ? 'bg-white/[0.04] text-zinc-400 border-white/[0.06] cursor-default'
-                : 'bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border-white/10 hover:border-white/20 cursor-pointer'
+              isRunning || loading
+                ? 'bg-white/[0.04] text-zinc-500 border-white/[0.06] cursor-not-allowed opacity-70'
+                : 'bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border-white/10 hover:border-white/20 cursor-pointer active:scale-95'
             }`}
           >
             <Layers className="w-3 h-3 text-zinc-400" />
@@ -266,8 +269,13 @@ export const MasterSwitch: React.FC<MasterSwitchProps> = ({
         ) : (
           <button
             onClick={onOpenProfiles}
+            disabled={isRunning || loading}
             title="Нажмите чтобы добавить конфигурацию"
-            className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono border border-dashed border-white/20 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white transition-all cursor-pointer"
+            className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono border border-dashed transition-all ${
+              isRunning || loading
+                ? 'bg-white/[0.02] text-zinc-600 border-white/10 cursor-not-allowed opacity-60'
+                : 'border-white/20 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white cursor-pointer active:scale-95'
+            }`}
           >
             <Plus className="w-3 h-3 text-zinc-400" />
             <span>Добавить конфиг ({currentMode === 'office' ? 'Офис' : 'Дом'})</span>

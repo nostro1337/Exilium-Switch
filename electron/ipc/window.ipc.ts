@@ -8,6 +8,22 @@ export function registerWindowIpc(): void {
     WindowManager.getInstance().getWindow()?.minimize()
   })
 
+  ipcMain.on(IPC_CHANNELS.WINDOW_TOGGLE_MAXIMIZE, () => {
+    const win = WindowManager.getInstance().getWindow()
+    if (win && !win.isDestroyed()) {
+      if (win.isMaximized()) {
+        win.unmaximize()
+      } else {
+        win.maximize()
+      }
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.WINDOW_IS_MAXIMIZED, () => {
+    const win = WindowManager.getInstance().getWindow()
+    return win && !win.isDestroyed() ? win.isMaximized() : false
+  })
+
   ipcMain.on(IPC_CHANNELS.WINDOW_CLOSE, () => {
     const settings = SettingsService.getInstance().loadSettings()
     const windowManager = WindowManager.getInstance()

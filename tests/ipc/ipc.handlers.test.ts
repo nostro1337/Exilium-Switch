@@ -23,7 +23,7 @@ vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => 'C:\\MockAppData'),
     getAppPath: vi.fn(() => 'C:\\MockAppPath'),
-    getVersion: vi.fn(() => '1.5.5'),
+    getVersion: vi.fn(() => '1.5.6'),
     quit: vi.fn()
   },
   BrowserWindow: vi.fn(),
@@ -108,7 +108,7 @@ describe('IPC Handlers Execution Suite', () => {
   it('should execute Updater handlers (GET_APP_VERSION, CHECK_FOR_UPDATES, START_UPDATE_DOWNLOAD)', async () => {
     expect(handlers[IPC_CHANNELS.GET_APP_VERSION]).toBeDefined()
     const version = await handlers[IPC_CHANNELS.GET_APP_VERSION]()
-    expect(version).toBe('1.5.5')
+    expect(version).toBe('1.5.6')
 
     expect(handlers[IPC_CHANNELS.CHECK_FOR_UPDATES]).toBeDefined()
     const check = await handlers[IPC_CHANNELS.CHECK_FOR_UPDATES]()
@@ -119,9 +119,16 @@ describe('IPC Handlers Execution Suite', () => {
     expect(download).toBeDefined()
   })
 
-  it('should execute Window listeners (WINDOW_MINIMIZE, WINDOW_CLOSE)', () => {
+  it('should execute Window listeners (WINDOW_MINIMIZE, WINDOW_TOGGLE_MAXIMIZE, WINDOW_IS_MAXIMIZED, WINDOW_CLOSE)', async () => {
     expect(listeners[IPC_CHANNELS.WINDOW_MINIMIZE]).toBeDefined()
     expect(() => listeners[IPC_CHANNELS.WINDOW_MINIMIZE]()).not.toThrow()
+
+    expect(listeners[IPC_CHANNELS.WINDOW_TOGGLE_MAXIMIZE]).toBeDefined()
+    expect(() => listeners[IPC_CHANNELS.WINDOW_TOGGLE_MAXIMIZE]()).not.toThrow()
+
+    expect(handlers[IPC_CHANNELS.WINDOW_IS_MAXIMIZED]).toBeDefined()
+    const isMax = await handlers[IPC_CHANNELS.WINDOW_IS_MAXIMIZED]()
+    expect(typeof isMax).toBe('boolean')
 
     expect(listeners[IPC_CHANNELS.WINDOW_CLOSE]).toBeDefined()
     expect(() => listeners[IPC_CHANNELS.WINDOW_CLOSE]()).not.toThrow()

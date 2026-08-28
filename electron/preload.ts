@@ -32,6 +32,9 @@ export interface IpcApi {
   runSystemAudit: () => Promise<AuditDiagnosisResult>
   testLatency: () => Promise<{ latencyMs: number | null; error?: string }>
   minimizeWindow: () => void
+  toggleMaximizeWindow: () => void
+  isWindowMaximized: () => Promise<boolean>
+  onWindowMaximizedChange: (callback: (isMaximized: boolean) => void) => () => void
   closeWindow: () => void
   onLog: (callback: (log: LogEntry) => void) => () => void
   onStatusChange: (callback: (status: VpnStatus) => void) => () => void
@@ -76,6 +79,13 @@ const api: IpcApi = {
   runSystemAudit: () => ipcRenderer.invoke(IPC_CHANNELS.RUN_SYSTEM_AUDIT),
   testLatency: () => ipcRenderer.invoke(IPC_CHANNELS.TEST_LATENCY),
   minimizeWindow: () => ipcRenderer.send(IPC_CHANNELS.WINDOW_MINIMIZE),
+  toggleMaximizeWindow: () => ipcRenderer.send(IPC_CHANNELS.WINDOW_TOGGLE_MAXIMIZE),
+  isWindowMaximized: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_IS_MAXIMIZED),
+  onWindowMaximizedChange: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, isMax: boolean) => callback(isMax)
+    ipcRenderer.on(IPC_CHANNELS.WINDOW_MAXIMIZED_CHANGED, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.WINDOW_MAXIMIZED_CHANGED, handler)
+  },
   closeWindow: () => ipcRenderer.send(IPC_CHANNELS.WINDOW_CLOSE),
   onLog: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, log: LogEntry) => callback(log)

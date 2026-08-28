@@ -19,7 +19,20 @@ export const RUSSIAN_AND_CIS_DOMAINS = [
 
 export const DISCORD_DOMAINS = [
   "discord.com", "discord.gg", "discordapp.com", "discordapp.net",
-  "discord.media", "discordcdn.com", "discordstatus.com"
+  "discord.media", "discordcdn.com", "discordstatus.com", "discord.co",
+  "discord.dev", "discordapp.io", "discord.gift"
+]
+
+export const STREAMING_AND_AI_DOMAINS = [
+  // YouTube & Google Media / Services
+  "youtube.com", "youtu.be", "ytimg.com", "googlevideo.com", "yt.be",
+  "youtubei.googleapis.com", "youtube-nocookie.com", "ggpht.com",
+  "googleapis.com", "gstatic.com", "googleusercontent.com",
+  // Gemini & Google AI & IDE APIs
+  "generativelanguage.googleapis.com", "ai.google.dev", "gemini.google.com",
+  "alkalimakersuite-pa.clients6.google.com", "aistudio.google.com",
+  // Modern AI & Dev Services
+  "openai.com", "anthropic.com", "claude.ai", "groq.com", "huggingface.co"
 ]
 
 export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'home'): { config: Record<string, unknown>; name: string } {
@@ -93,14 +106,14 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
 
   dnsRules.push(
     { domain_suffix: RUSSIAN_AND_CIS_DOMAINS, server: "dns-direct" },
-    { domain_suffix: DISCORD_DOMAINS, server: "dns-remote" }
+    { domain_suffix: DISCORD_DOMAINS, server: "dns-remote" },
+    { domain_suffix: STREAMING_AND_AI_DOMAINS, server: "dns-remote" }
   )
 
   const routeRules: Record<string, unknown>[] = [
     { action: "sniff" },
     { protocol: "dns", action: "hijack-dns" },
     { port: 53, action: "hijack-dns" },
-    { ip_version: 6, action: "reject" },
     routeDirectRule
   ]
 
@@ -130,6 +143,7 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
     { ip_is_private: true, outbound: "direct" },
     { domain_suffix: RUSSIAN_AND_CIS_DOMAINS, outbound: "direct" },
     { domain_suffix: DISCORD_DOMAINS, outbound: "proxy-out" },
+    { domain_suffix: STREAMING_AND_AI_DOMAINS, outbound: "proxy-out" },
     {
       ip_cidr: ["149.154.160.0/20", "91.108.4.0/22", "91.108.8.0/22", "91.108.56.0/22"],
       outbound: "proxy-out"
@@ -186,12 +200,12 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
         type: "tun",
         tag: "tun-in",
         interface_name: "singbox-tun0",
-        address: isOffice ? ["172.19.0.1/30"] : ["172.19.0.1/30", "fd00::1/126"],
+        address: ["172.19.0.1/30"],
         mtu: 1400,
         auto_route: true,
-        strict_route: !isOffice,
+        strict_route: false,
         endpoint_independent_nat: true,
-        stack: "mixed"
+        stack: "system"
       }
     ],
     outbounds: [

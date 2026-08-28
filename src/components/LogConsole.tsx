@@ -44,6 +44,8 @@ export const LogConsole: React.FC<LogConsoleProps> = ({ isOpen, onClose }) => {
     }
   }, [logs, isOpen])
 
+  const [exporting, setExporting] = useState(false)
+
   const handleCopy = () => {
     const raw = logs.map((l) => `[${l.time}] [${l.type.toUpperCase()}] ${l.text}`).join('\n')
     navigator.clipboard.writeText(raw)
@@ -52,10 +54,16 @@ export const LogConsole: React.FC<LogConsoleProps> = ({ isOpen, onClose }) => {
   }
 
   const handleExport = async () => {
-    const res = await window.electronAPI?.exportLogs()
-    if (res && res.success) {
-      setExported(true)
-      setTimeout(() => setExported(false), 2500)
+    if (exporting) return
+    setExporting(true)
+    try {
+      const res = await window.electronAPI?.exportLogs()
+      if (res && res.success) {
+        setExported(true)
+        setTimeout(() => setExported(false), 2500)
+      }
+    } finally {
+      setExporting(false)
     }
   }
 

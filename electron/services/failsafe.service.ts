@@ -28,15 +28,19 @@ export class FailsafeService {
       const isRunning = await singboxService.isRunning()
       if (!isRunning) {
         const settings = settingsService.loadSettings()
-        // If sing-box is not running, ensure physical network is in clean state
-        logService.addLog('Санация при старте: проверка чистоты сетевого стека Windows...', 'info')
+        const targetRealZone = settings.realZone || 'Tomsk Standard Time'
+
+        logService.addLog('Санация при старте: проверка сетевого стека Windows и часового пояса...', 'info')
         await residentService.restoreRegularNetwork()
 
         const currentTz = await residentService.getSystemTimezone()
-        if (currentTz === settings.fakeZone && settings.realZone) {
-          logService.addLog(`Восстановление исходной часовой зоны после предыдущей сессии → ${settings.realZone}`, 'info')
-          await residentService.setSystemTimezone(settings.realZone)
+        if (currentTz && currentTz !== 'Unknown' && currentTz !== targetRealZone) {
+          logService.addLog(`Восстановление реального часового пояса (${currentTz} → ${targetRealZone})...`, 'info')
+          await residentService.setSystemTimezone(targetRealZone)
         }
+
+        // Restore lfsvc in case of past unclean termination
+        await residentService.startLfsvc()
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)

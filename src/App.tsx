@@ -60,7 +60,7 @@ export function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col justify-between py-2 z-10 overflow-y-auto">
+      <main className="flex-1 flex flex-col justify-between py-2 z-10 overflow-y-auto w-full max-w-lg mx-auto">
         {/* Central Master Switch & Mode Selector */}
         <MasterSwitch
           isRunning={status.isRunning}
@@ -127,7 +127,7 @@ export function App() {
       {/* Update Center Modal */}
       <UpdateModal
         isOpen={updateModalOpen}
-        currentVersion="1.5.5"
+        currentVersion="1.5.6"
         onClose={() => setUpdateModalOpen(false)}
       />
     </div>

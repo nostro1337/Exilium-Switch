@@ -225,10 +225,10 @@ export const SystemDiagnosisModal: React.FC<SystemDiagnosisModalProps> = ({
                   <button
                     onClick={runScan}
                     disabled={loading}
-                    className="text-xs font-mono px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/10 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    className="text-xs font-mono px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/10 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Повторить анализ</span>
+                    <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                    <span>{loading ? 'Анализ...' : 'Повторить анализ'}</span>
                   </button>
                 </div>
               </>

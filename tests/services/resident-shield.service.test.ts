@@ -32,6 +32,10 @@ describe('ResidentShieldService Full Lifecycle', () => {
     await expect(residentService.restoreRegularNetwork()).resolves.not.toThrow()
   }, 20000)
 
+  it('should execute syncEmergencyCleanup safely without crashing', () => {
+    expect(() => residentService.syncEmergencyCleanup('Tomsk Standard Time')).not.toThrow()
+  })
+
   it('should orchestrate enableResidentMode and disableResidentMode without uncaught errors', async () => {
     await expect(residentService.enableResidentMode('W. Europe Standard Time')).resolves.not.toThrow()
     await expect(residentService.disableResidentMode('Russian Standard Time')).resolves.not.toThrow()

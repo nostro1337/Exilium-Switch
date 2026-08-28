@@ -56,15 +56,13 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
   }, [isOpen, selectedMode])
 
   const handleSwitchTab = (mode: AppMode) => {
+    if (loading) return
     setSelectedMode(mode)
-    if (!isRunning && onModeChange) {
-      onModeChange(mode)
-    }
   }
 
   const handleImport = async () => {
-    if (isRunning) {
-      setErrorMsg('Отключите туннель перед добавлением нового профиля')
+    if (isRunning || loading) {
+      if (isRunning) setErrorMsg('Отключите туннель перед добавлением нового профиля')
       return
     }
     setLoading(true)
@@ -82,6 +80,7 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
   }
 
   const handlePasteFromClipboard = async () => {
+    if (loading) return
     try {
       const text = await navigator.clipboard.readText()
       if (text) setVlessText(text.trim())
@@ -89,8 +88,8 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
   }
 
   const handleDirectPasteAndImport = async () => {
-    if (isRunning) {
-      setErrorMsg('Отключите туннель перед добавлением нового профиля')
+    if (isRunning || loading) {
+      if (isRunning) setErrorMsg('Отключите туннель перед добавлением нового профиля')
       return
     }
     setErrorMsg(null)
@@ -118,8 +117,8 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
   }
 
   const handleImportVless = async () => {
-    if (isRunning) {
-      setErrorMsg('Отключите туннель перед добавлением нового профиля')
+    if (isRunning || loading) {
+      if (isRunning) setErrorMsg('Отключите туннель перед добавлением нового профиля')
       return
     }
     if (!vlessText.trim()) {
@@ -143,24 +142,32 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
   }
 
   const handleSelect = async (profileId: string) => {
-    if (isRunning) {
-      setErrorMsg('Отключите туннель перед переключением профиля')
+    if (isRunning || loading) {
+      if (isRunning) setErrorMsg('Отключите туннель перед переключением профиля')
       return
     }
+    setLoading(true)
     setErrorMsg(null)
-    const res = await window.electronAPI?.selectProfile(profileId)
-    if (res && res.success) {
-      await loadProfiles()
-    } else if (res && res.error) {
-      setErrorMsg(res.error)
+    try {
+      const res = await window.electronAPI?.selectProfile(profileId)
+      if (res && res.success) {
+        if (selectedMode !== currentMode && onModeChange) {
+          onModeChange(selectedMode)
+        }
+        await loadProfiles()
+      } else if (res && res.error) {
+        setErrorMsg(res.error)
+      }
+    } finally {
+      setLoading(false)
     }
   }
 
   const [confirmClear, setConfirmClear] = useState(false)
 
   const handleClearAll = async () => {
-    if (isRunning) {
-      setErrorMsg('Отключите туннель перед удалением профилей')
+    if (isRunning || loading) {
+      if (isRunning) setErrorMsg('Отключите туннель перед удалением профилей')
       return
     }
     if (!confirmClear) {
@@ -185,13 +192,18 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({
 
   const handleDelete = async (e: React.MouseEvent, profileId: string) => {
     e.stopPropagation()
-    if (isRunning) return
+    if (isRunning || loading) return
+    setLoading(true)
     setErrorMsg(null)
-    const res = await window.electronAPI?.deleteProfile(profileId)
-    if (res && res.success) {
-      await loadProfiles()
-    } else if (res && res.error) {
-      setErrorMsg(res.error)
+    try {
+      const res = await window.electronAPI?.deleteProfile(profileId)
+      if (res && res.success) {
+        await loadProfiles()
+      } else if (res && res.error) {
+        setErrorMsg(res.error)
+      }
+    } finally {
+      setLoading(false)
     }
   }
 

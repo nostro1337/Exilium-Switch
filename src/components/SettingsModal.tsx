@@ -197,8 +197,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
           <div className="flex items-center gap-2">
             <button
               onClick={handleResetDefaults}
+              disabled={saving}
               title="Сбросить по умолчанию"
-              className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RotateCcw className="w-3 h-3" strokeWidth={1.75} />
               <span>Сброс</span>
@@ -209,14 +210,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/10 text-zinc-300 text-xs font-medium transition-colors cursor-pointer"
+              disabled={saving}
+              className="px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/10 text-zinc-300 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
             >
               Отмена
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-3 py-1.5 rounded-lg bg-white text-black font-semibold text-xs flex items-center gap-1.5 hover:bg-zinc-200 transition-all cursor-pointer"
+              className="px-3 py-1.5 rounded-lg bg-white text-black font-semibold text-xs flex items-center gap-1.5 hover:bg-zinc-200 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-3.5 h-3.5 text-black" strokeWidth={2} />
               <span>{savedSuccess ? 'Сохранено!' : saving ? '...' : 'Сохранить'}</span>

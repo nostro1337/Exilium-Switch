@@ -35,15 +35,15 @@ export const ResidentStatusCard: React.FC<ResidentStatusCardProps> = ({
 
   const isOffice = currentMode === 'office'
   const isFakeZone = currentZone.toLowerCase().includes('europe') || currentZone === fakeZone
-  const isLocationBlocked = lfsvcStatus.toLowerCase().includes('stop') || lfsvcStatus === 'NotFound'
+  const isLocationBlocked = lfsvcStatus.toLowerCase().includes('stop') || lfsvcStatus === 'NotFound' || lfsvcStatus.toLowerCase().includes('disabled')
 
   return (
-    <div className="grid grid-cols-2 gap-2.5 px-4 select-none">
+    <div className="grid grid-cols-2 gap-2.5 px-4 select-none w-full">
       {/* Timezone Spoofing Card */}
       <div className="mono-card rounded-xl p-3 flex flex-col justify-between">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-medium">
-            <Globe className="w-3.5 h-3.5 text-zinc-300" strokeWidth={1.75} />
+          <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-medium">
+            <Globe className="w-3.5 h-3.5 text-zinc-200" strokeWidth={1.8} />
             <span>Часовой пояс</span>
           </div>
           <span className={`w-2 h-2 rounded-full transition-all duration-300 ${
@@ -59,7 +59,7 @@ export const ResidentStatusCard: React.FC<ResidentStatusCardProps> = ({
           <p className="text-xs font-semibold text-zinc-100 truncate" title={currentZone}>
             {currentZone || 'Tomsk Standard Time'}
           </p>
-          <p className="text-[10px] text-zinc-500 font-mono mt-0.5 truncate">
+          <p className="text-[10px] text-zinc-400 font-mono mt-0.5 truncate">
             {isOffice
               ? (isRunning ? 'В режиме «Офис» часовой пояс сохранен' : 'Режим «Офис»: без подмены времени')
               : (isRunning ? `Целевой: ${fakeZone}` : `Реальный: ${realZone}`)}
@@ -70,8 +70,8 @@ export const ResidentStatusCard: React.FC<ResidentStatusCardProps> = ({
       {/* Geolocation Shield Card */}
       <div className="mono-card rounded-xl p-3 flex flex-col justify-between">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-medium">
-            <MapPinOff className="w-3.5 h-3.5 text-zinc-300" strokeWidth={1.75} />
+          <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-medium">
+            <MapPinOff className="w-3.5 h-3.5 text-zinc-200" strokeWidth={1.8} />
             <span>Служба гео (lfsvc)</span>
           </div>
           <span className={`w-2 h-2 rounded-full transition-all duration-300 ${
@@ -93,7 +93,7 @@ export const ResidentStatusCard: React.FC<ResidentStatusCardProps> = ({
                   ? (isLocationBlocked ? 'Заблокирована (Safe)' : 'Активна (Не отключена)')
                   : (isLocationBlocked ? 'Отключена (Windows)' : 'Активна (Windows)'))}
           </p>
-          <p className="text-[10px] text-zinc-500 font-mono mt-0.5 truncate">
+          <p className="text-[10px] text-zinc-400 font-mono mt-0.5 truncate">
             {isOffice
               ? (isRunning ? 'В режиме «Офис» служба гео не изменяется' : 'Режим «Офис»: без блокировки служб')
               : (isRunning 
@@ -107,12 +107,12 @@ export const ResidentStatusCard: React.FC<ResidentStatusCardProps> = ({
       <div className="col-span-2 mono-card rounded-xl p-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-white/[0.06] text-white border border-white/[0.08]">
-            <Activity className="w-4 h-4" strokeWidth={2} />
+            <Activity className="w-4 h-4" strokeWidth={1.8} />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-medium text-zinc-200">Пинг до Амстердама (NL)</span>
-              <Radio className="w-3 h-3 text-zinc-500 animate-pulse" />
+              <Radio className="w-3 h-3 text-zinc-400 animate-pulse" strokeWidth={1.8} />
             </div>
             <p className="text-[11px] text-zinc-400 font-mono mt-0.5">
               {latency !== null ? (
@@ -130,9 +130,9 @@ export const ResidentStatusCard: React.FC<ResidentStatusCardProps> = ({
           onClick={handleTestLatency}
           disabled={testingLatency}
           title="Замерить пинг до сервера в Амстердаме"
-          className="px-3 py-1.5 rounded-lg bg-white/[0.08] hover:bg-white/15 text-zinc-200 hover:text-white border border-white/10 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer"
+          className="px-3 py-1.5 rounded-lg bg-white/[0.08] hover:bg-white/15 text-zinc-200 hover:text-white border border-white/10 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <RefreshCw className={`w-3 h-3 ${testingLatency ? 'animate-spin text-white' : ''}`} strokeWidth={1.75} />
+          <RefreshCw className={`w-3 h-3 ${testingLatency ? 'animate-spin text-white' : ''}`} strokeWidth={1.8} />
           <span>{testingLatency ? 'Тест...' : 'Пинг'}</span>
         </button>
       </div>

@@ -1,4 +1,4 @@
-import { execFileAsync, setRegistryDword } from '../utils/exec'
+import { execFileAsync, execFileSyncSafe, setRegistryDword } from '../utils/exec'
 import { NetworkService } from './network.service'
 import { LogService } from './log.service'
 import { AMSTERDAM_TIMEZONE, FALLBACK_TIMEZONE } from '../core/constants'
@@ -71,8 +71,9 @@ export class ResidentShieldService {
 
   public async stopLfsvc(): Promise<boolean> {
     const logService = LogService.getInstance()
-    logService.addLog('Блокировка службы геолокации Windows (lfsvc) и реестра...', 'info')
+    logService.addLog('Блокировка службы геолокации Windows (lfsvc) и системного реестра...', 'info')
     try {
+      // 1. Deny user-level and system-wide location consent
       try {
         await execFileAsync('reg.exe', [
           'add',
@@ -85,10 +86,45 @@ export class ResidentShieldService {
       } catch {}
 
       try {
-        await execFileAsync('sc.exe', ['stop', 'lfsvc'])
+        await execFileAsync('reg.exe', [
+          'add',
+          'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\location',
+          '/v', 'Value',
+          '/t', 'REG_SZ',
+          '/d', 'Deny',
+          '/f'
+        ])
       } catch {}
 
-      logService.addLog('✓ Служба геолокации (lfsvc) остановлена, доступ приложений к координатам закрыт.', 'success')
+      // 2. Disable service startup type so Windows triggers cannot auto-restart lfsvc
+      try {
+        await execFileAsync('sc.exe', ['config', 'lfsvc', 'start=', 'disabled'])
+      } catch {
+        try {
+          await execFileAsync('powershell.exe', [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            'Set-Service -Name lfsvc -StartupType Disabled -ErrorAction SilentlyContinue'
+          ])
+        } catch {}
+      }
+
+      // 3. Stop the running service
+      try {
+        await execFileAsync('sc.exe', ['stop', 'lfsvc'])
+      } catch {
+        try {
+          await execFileAsync('powershell.exe', [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            'Stop-Service -Name lfsvc -Force -ErrorAction SilentlyContinue'
+          ])
+        } catch {}
+      }
+
+      logService.addLog('✓ Служба геолокации (lfsvc) отключена, автозапуск заблокирован, доступ к координатам закрыт.', 'success')
       return true
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -101,6 +137,7 @@ export class ResidentShieldService {
     const logService = LogService.getInstance()
     logService.addLog('Восстановление службы геолокации Windows (lfsvc)...', 'info')
     try {
+      // 1. Restore location consent
       try {
         await execFileAsync('reg.exe', [
           'add',
@@ -112,6 +149,32 @@ export class ResidentShieldService {
         ])
       } catch {}
 
+      try {
+        await execFileAsync('reg.exe', [
+          'add',
+          'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\location',
+          '/v', 'Value',
+          '/t', 'REG_SZ',
+          '/d', 'Allow',
+          '/f'
+        ])
+      } catch {}
+
+      // 2. Restore service startup type to demand (Manual trigger)
+      try {
+        await execFileAsync('sc.exe', ['config', 'lfsvc', 'start=', 'demand'])
+      } catch {
+        try {
+          await execFileAsync('powershell.exe', [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            'Set-Service -Name lfsvc -StartupType Manual -ErrorAction SilentlyContinue'
+          ])
+        } catch {}
+      }
+
+      // 3. Start service
       try {
         await execFileAsync('sc.exe', ['start', 'lfsvc'])
       } catch {}
@@ -145,13 +208,13 @@ export class ResidentShieldService {
         ])
       } catch {}
 
-      // 2. Set loopback stub on physical adapter so Windows NEVER queries ISP directly past TUN
+      // 2. Set secure public fallback DNS on physical adapter so Windows never leaks to ISP but never hangs on loopback
       try {
         await execFileAsync('powershell.exe', [
           '-NoProfile',
           '-NonInteractive',
           '-Command',
-          `Set-DnsClientServerAddress -InterfaceAlias '${name}' -ServerAddresses ("127.0.0.1") -ErrorAction SilentlyContinue`
+          `Set-DnsClientServerAddress -InterfaceAlias '${name}' -ServerAddresses ("8.8.8.8","1.1.1.1") -ErrorAction SilentlyContinue`
         ])
       } catch {}
     }
@@ -244,5 +307,28 @@ export class ResidentShieldService {
     await this.startLfsvc()
     await this.restoreRegularNetwork()
     logService.addLog('✓ Режим Resident Shield выключен, реальная геолокация и таймзона восстановлены.', 'success')
+  }
+
+  /**
+   * Instant fail-safe rollback for application crashes, force kills, or unhandled exceptions
+   */
+  public syncEmergencyCleanup(realZone = FALLBACK_TIMEZONE): void {
+    try {
+      execFileSyncSafe('tzutil.exe', ['/s', realZone])
+    } catch {}
+    try {
+      execFileSyncSafe('sc.exe', ['config', 'lfsvc', 'start=', 'demand'])
+      execFileSyncSafe('sc.exe', ['start', 'lfsvc'])
+    } catch {}
+    try {
+      execFileSyncSafe('reg.exe', [
+        'add',
+        'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\location',
+        '/v', 'Value',
+        '/t', 'REG_SZ',
+        '/d', 'Allow',
+        '/f'
+      ])
+    } catch {}
   }
 }

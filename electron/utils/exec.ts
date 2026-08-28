@@ -1,7 +1,19 @@
-import { execFile } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 
 export const execFileAsync = promisify(execFile)
+
+/**
+ * Synchronous fail-safe execution for emergency exit and crash cleanup
+ */
+export function execFileSyncSafe(file: string, args: string[], timeoutMs = 3000): string {
+  try {
+    const res = execFileSync(file, args, { timeout: timeoutMs, windowsHide: true, encoding: 'utf8' })
+    return res.trim()
+  } catch {
+    return ''
+  }
+}
 
 /**
  * Execute a PowerShell command with -NoProfile and -NonInteractive flags

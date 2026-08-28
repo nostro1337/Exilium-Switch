@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { runPowerShell } from '../../electron/utils/exec'
+import { runPowerShell, execFileSyncSafe } from '../../electron/utils/exec'
 
 describe('Exec Utilities & PowerShell Runner', () => {
   it('should execute PowerShell script and return trimmed output', async () => {
@@ -14,5 +14,10 @@ describe('Exec Utilities & PowerShell Runner', () => {
 
   it('should handle script errors gracefully with meaningful exception', async () => {
     await expect(runPowerShell('Throw "CustomError"')).rejects.toThrowError('PowerShell execution error')
+  })
+
+  it('should safely execute execFileSyncSafe and handle nonexistent binary', () => {
+    const res = execFileSyncSafe('nonexistent_bin_xyz.exe', [])
+    expect(res).toBe('')
   })
 })

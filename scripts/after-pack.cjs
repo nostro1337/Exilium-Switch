@@ -8,7 +8,7 @@ exports.default = async function (context) {
   const appOutDir = context.appOutDir;
   const exePath = path.join(appOutDir, 'Exilium Switch.exe');
   const iconPath = path.resolve(__dirname, '../build/icon.ico');
-  const version = context.packager?.appInfo?.version || '1.5.5';
+  const version = context.packager?.appInfo?.version || '1.5.6';
 
   // Ensure app-update.yml exists in resources
   const updateYmlSource = path.resolve(__dirname, '../build/app-update.yml');
