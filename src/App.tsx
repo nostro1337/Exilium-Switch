@@ -7,28 +7,13 @@ import { SettingsModal } from './components/SettingsModal'
 import { ProfileSelector } from './components/ProfileSelector'
 import { UpdateModal } from './components/UpdateModal'
 import { SystemDiagnosisModal } from './components/SystemDiagnosisModal'
-import type { VpnStatus, AppSettings, AppMode } from '../electron/preload'
+import { useVpnStatus } from './hooks/useVpnStatus'
+import { useSettings } from './hooks/useSettings'
+import type { AppMode } from '../shared/types'
 
 export function App() {
-  const [status, setStatus] = useState<VpnStatus>({
-    isRunning: false,
-    currentZone: 'Tomsk Standard Time',
-    lfsvcStatus: 'Stopped',
-    uptimeSeconds: 0,
-    activeProfileName: 'Основной профиль',
-    appMode: 'home'
-  })
-
-  const [settings, setSettings] = useState<AppSettings>({
-    realZone: 'Tomsk Standard Time',
-    fakeZone: 'W. Europe Standard Time',
-    autoStart: false,
-    minimizeToTray: true,
-    startMinimized: false,
-    activeProfileId: undefined,
-    appMode: 'home',
-    activeProfileIdByMode: {}
-  })
+  const { status, toggleVpn, setMode } = useVpnStatus()
+  const { settings, reloadSettings } = useSettings()
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [logsOpen, setLogsOpen] = useState(false)
@@ -50,58 +35,9 @@ export function App() {
     return () => unsub?.()
   }, [])
 
-  // Fetch initial state safely
-  useEffect(() => {
-    window.electronAPI?.getStatus().then((s) => {
-      if (s) setStatus(s)
-    })
-
-    window.electronAPI?.getSettings().then((set) => {
-      if (set) setSettings(set)
-    })
-
-    const unsubscribe = window.electronAPI?.onStatusChange((updated) => {
-      setStatus(updated)
-    })
-
-    return () => {
-      if (unsubscribe) unsubscribe()
-    }
-  }, [])
-
-  // Uptime ticker
-  useEffect(() => {
-    let interval: any
-    if (status.isRunning) {
-      interval = setInterval(() => {
-        setStatus((prev) => ({
-          ...prev,
-          uptimeSeconds: prev.uptimeSeconds + 1
-        }))
-      }, 1000)
-    }
-    return () => clearInterval(interval)
-  }, [status.isRunning])
-
-  const handleToggleVpn = async () => {
-    const res = await window.electronAPI?.toggleVpn()
-    if (res) {
-      setStatus((prev) => ({
-        ...prev,
-        isRunning: res.isRunning,
-        uptimeSeconds: res.isRunning ? prev.uptimeSeconds : 0
-      }))
-    }
-  }
-
   const handleSelectMode = async (mode: AppMode) => {
     if (status.isRunning) return
-    const res = await window.electronAPI?.setAppMode(mode)
-    if (res && res.success) {
-      setSettings((prev) => ({ ...prev, appMode: mode }))
-      const s = await window.electronAPI?.getStatus()
-      if (s) setStatus(s)
-    }
+    await setMode(mode)
   }
 
   return (
@@ -131,7 +67,7 @@ export function App() {
           uptimeSeconds={status.uptimeSeconds}
           activeProfileName={status.activeProfileName}
           currentMode={currentMode}
-          onToggle={handleToggleVpn}
+          onToggle={async () => { await toggleVpn() }}
           onSelectMode={handleSelectMode}
           onOpenDiagnosis={() => setDiagnosisOpen(true)}
           onOpenProfiles={() => setProfilesOpen(true)}
@@ -180,9 +116,7 @@ export function App() {
         isOpen={settingsOpen}
         onClose={() => {
           setSettingsOpen(false)
-          window.electronAPI?.getSettings().then((set) => {
-            if (set) setSettings(set)
-          })
+          reloadSettings()
         }}
         onCheckUpdates={() => {
           setSettingsOpen(false)

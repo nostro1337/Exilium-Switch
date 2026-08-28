@@ -1,55 +1,26 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { IPC_CHANNELS } from '../shared/ipc-channels'
+import type {
+  AppMode,
+  AppSettings,
+  ConfigProfile,
+  AuditDiagnosisResult,
+  VpnStatus,
+  LogEntry,
+  UpdateInfo,
+  UpdateProgress
+} from '../shared/types'
 
-export type AppMode = 'home' | 'office' | 'gaming'
-
-export interface AppSettings {
-  realZone: string
-  fakeZone: string
-  autoStart: boolean
-  minimizeToTray: boolean
-  startMinimized: boolean
-  activeProfileId?: string
-  appMode?: AppMode
-  activeProfileIdByMode?: Record<string, string>
-}
-
-export interface ConfigProfile {
-  id: string
-  name: string
-  filename: string
-  path: string
-  createdAt: number
-  isDefault?: boolean
-  isActive?: boolean
-  mode?: AppMode
-}
-
-export interface AuditDiagnosisResult {
-  hostname: string
-  currentUser: string
-  isAdministrator: boolean
-  domainJoined: boolean
-  domainName: string
-  domainControllers: Array<{ name: string; ip: string }>
-  dnsServers: string[]
-  dnsSuffixes: string[]
-  defaultGateway: string
-  ipAddress: string
-  vpsReachable: boolean
-  vpsLatencyMs: number
-  recommendedMode: AppMode
-  recommendationReason: string
-}
-
-export interface VpnStatus {
-  isRunning: boolean
-  pid?: number
-  currentZone: string
-  lfsvcStatus: string
-  uptimeSeconds: number
-  startTime?: number
-  activeProfileName?: string
-  appMode?: AppMode
+// Re-export for renderer backward compatibility
+export type {
+  AppMode,
+  AppSettings,
+  ConfigProfile,
+  AuditDiagnosisResult,
+  VpnStatus,
+  LogEntry,
+  UpdateInfo,
+  UpdateProgress
 }
 
 export interface IpcApi {
@@ -62,9 +33,9 @@ export interface IpcApi {
   testLatency: () => Promise<{ latencyMs: number | null; error?: string }>
   minimizeWindow: () => void
   closeWindow: () => void
-  onLog: (callback: (log: { time: string; text: string; type: 'info' | 'warn' | 'error' | 'success' | 'dev' }) => void) => () => void
+  onLog: (callback: (log: LogEntry) => void) => () => void
   onStatusChange: (callback: (status: VpnStatus) => void) => () => void
-  getRecentLogs: () => Promise<Array<{ time: string; text: string; type: 'info' | 'warn' | 'error' | 'success' | 'dev' }>>
+  getRecentLogs: () => Promise<LogEntry[]>
   
   // Profile Management
   getProfiles: (mode?: AppMode) => Promise<ConfigProfile[]>
@@ -91,91 +62,78 @@ export interface IpcApi {
   onOpenUpdateModal: (callback: () => void) => () => void
 }
 
-export interface UpdateInfo {
-  version: string
-  releaseNotes?: string | Array<{ version: string; note: string }>
-  releaseDate?: string
-}
-
-export interface UpdateProgress {
-  percent: number
-  bytesPerSecond: number
-  transferred: number
-  total: number
-}
-
 const api: IpcApi = {
-  getStatus: () => ipcRenderer.invoke('get-status'),
-  toggleVpn: (enable) => ipcRenderer.invoke('toggle-vpn', enable),
-  getSettings: () => ipcRenderer.invoke('get-settings'),
-  saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
-  setAppMode: (mode) => ipcRenderer.invoke('set-app-mode', mode),
-  runSystemAudit: () => ipcRenderer.invoke('run-system-audit'),
-  testLatency: () => ipcRenderer.invoke('test-latency'),
-  minimizeWindow: () => ipcRenderer.send('window-minimize'),
-  closeWindow: () => ipcRenderer.send('window-close'),
+  getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.GET_STATUS),
+  toggleVpn: (enable) => ipcRenderer.invoke(IPC_CHANNELS.TOGGLE_VPN, enable),
+  getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS),
+  saveSettings: (settings) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_SETTINGS, settings),
+  setAppMode: (mode) => ipcRenderer.invoke(IPC_CHANNELS.SET_APP_MODE, mode),
+  runSystemAudit: () => ipcRenderer.invoke(IPC_CHANNELS.RUN_SYSTEM_AUDIT),
+  testLatency: () => ipcRenderer.invoke(IPC_CHANNELS.TEST_LATENCY),
+  minimizeWindow: () => ipcRenderer.send(IPC_CHANNELS.WINDOW_MINIMIZE),
+  closeWindow: () => ipcRenderer.send(IPC_CHANNELS.WINDOW_CLOSE),
   onLog: (callback) => {
-    const handler = (_event: any, log: any) => callback(log)
-    ipcRenderer.on('sing-box-log', handler)
-    return () => ipcRenderer.removeListener('sing-box-log', handler)
+    const handler = (_event: Electron.IpcRendererEvent, log: LogEntry) => callback(log)
+    ipcRenderer.on(IPC_CHANNELS.SING_BOX_LOG, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SING_BOX_LOG, handler)
   },
   onStatusChange: (callback) => {
-    const handler = (_event: any, status: VpnStatus) => callback(status)
-    ipcRenderer.on('status-updated', handler)
-    return () => ipcRenderer.removeListener('status-updated', handler)
+    const handler = (_event: Electron.IpcRendererEvent, status: VpnStatus) => callback(status)
+    ipcRenderer.on(IPC_CHANNELS.STATUS_UPDATED, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.STATUS_UPDATED, handler)
   },
-  getRecentLogs: () => ipcRenderer.invoke('get-recent-logs'),
+  getRecentLogs: () => ipcRenderer.invoke(IPC_CHANNELS.GET_RECENT_LOGS),
   
   // Profiles
-  getProfiles: (mode) => ipcRenderer.invoke('get-profiles', mode),
-  importProfile: (mode) => ipcRenderer.invoke('import-profile', mode),
-  importVlessLink: (vlessUrl, mode) => ipcRenderer.invoke('import-vless-link', vlessUrl, mode),
-  selectProfile: (profileId) => ipcRenderer.invoke('select-profile', profileId),
-  deleteProfile: (profileId) => ipcRenderer.invoke('delete-profile', profileId),
+  getProfiles: (mode) => ipcRenderer.invoke(IPC_CHANNELS.GET_PROFILES, mode),
+  importProfile: (mode) => ipcRenderer.invoke(IPC_CHANNELS.IMPORT_PROFILE, mode),
+  importVlessLink: (vlessUrl, mode) => ipcRenderer.invoke(IPC_CHANNELS.IMPORT_VLESS_LINK, vlessUrl, mode),
+  selectProfile: (profileId) => ipcRenderer.invoke(IPC_CHANNELS.SELECT_PROFILE, profileId),
+  deleteProfile: (profileId) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_PROFILE, profileId),
   
   // Export Logs
-  exportLogs: () => ipcRenderer.invoke('export-logs'),
-  openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
+  exportLogs: () => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_LOGS),
+  openLogsFolder: () => ipcRenderer.invoke(IPC_CHANNELS.OPEN_LOGS_FOLDER),
 
   // Auto Updater
-  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
-  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
-  startUpdateDownload: () => ipcRenderer.invoke('updater:start-download'),
-  quitAndInstallUpdate: () => ipcRenderer.invoke('updater:quit-and-install'),
+  getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.GET_APP_VERSION),
+  checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.CHECK_FOR_UPDATES),
+  startUpdateDownload: () => ipcRenderer.invoke(IPC_CHANNELS.START_UPDATE_DOWNLOAD),
+  quitAndInstallUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.QUIT_AND_INSTALL_UPDATE),
   onUpdateChecking: (callback) => {
     const handler = () => callback()
-    ipcRenderer.on('updater:checking', handler)
-    return () => ipcRenderer.removeListener('updater:checking', handler)
+    ipcRenderer.on(IPC_CHANNELS.UPDATER_CHECKING, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATER_CHECKING, handler)
   },
   onUpdateAvailable: (callback) => {
-    const handler = (_event: any, info: UpdateInfo) => callback(info)
-    ipcRenderer.on('updater:available', handler)
-    return () => ipcRenderer.removeListener('updater:available', handler)
+    const handler = (_event: Electron.IpcRendererEvent, info: UpdateInfo) => callback(info)
+    ipcRenderer.on(IPC_CHANNELS.UPDATER_AVAILABLE, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATER_AVAILABLE, handler)
   },
   onUpdateNotAvailable: (callback) => {
     const handler = () => callback()
-    ipcRenderer.on('updater:not-available', handler)
-    return () => ipcRenderer.removeListener('updater:not-available', handler)
+    ipcRenderer.on(IPC_CHANNELS.UPDATER_NOT_AVAILABLE, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATER_NOT_AVAILABLE, handler)
   },
   onUpdateProgress: (callback) => {
-    const handler = (_event: any, progress: UpdateProgress) => callback(progress)
-    ipcRenderer.on('updater:progress', handler)
-    return () => ipcRenderer.removeListener('updater:progress', handler)
+    const handler = (_event: Electron.IpcRendererEvent, progress: UpdateProgress) => callback(progress)
+    ipcRenderer.on(IPC_CHANNELS.UPDATER_PROGRESS, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATER_PROGRESS, handler)
   },
   onUpdateDownloaded: (callback) => {
-    const handler = (_event: any, info: UpdateInfo) => callback(info)
-    ipcRenderer.on('updater:downloaded', handler)
-    return () => ipcRenderer.removeListener('updater:downloaded', handler)
+    const handler = (_event: Electron.IpcRendererEvent, info: UpdateInfo) => callback(info)
+    ipcRenderer.on(IPC_CHANNELS.UPDATER_DOWNLOADED, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATER_DOWNLOADED, handler)
   },
   onUpdateError: (callback) => {
-    const handler = (_event: any, err: any) => callback(err)
-    ipcRenderer.on('updater:error', handler)
-    return () => ipcRenderer.removeListener('updater:error', handler)
+    const handler = (_event: Electron.IpcRendererEvent, err: { message: string }) => callback(err)
+    ipcRenderer.on(IPC_CHANNELS.UPDATER_ERROR, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATER_ERROR, handler)
   },
   onOpenUpdateModal: (callback) => {
     const handler = () => callback()
-    ipcRenderer.on('open-update-modal', handler)
-    return () => ipcRenderer.removeListener('open-update-modal', handler)
+    ipcRenderer.on(IPC_CHANNELS.OPEN_UPDATE_MODAL, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.OPEN_UPDATE_MODAL, handler)
   }
 }
 
