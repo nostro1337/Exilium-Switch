@@ -1,10 +1,15 @@
-# Архитектурные границы и чистота репозитория (Architecture & File Hygiene)
+---
+trigger: always_on
+description: Стандарты слоистой архитектуры (SoC), типизация IPC и правила чистоты репозитория.
+---
+
+# 3. Архитектурные границы и чистота репозитория (Architecture & File Hygiene)
 
 Данный документ устанавливает обязательные требования к архитектуре и структуре файлов проекта **Exilium Switch**.
 
 ---
 
-## 1. Строгая слоистая архитектура (Layered SoC)
+## 3.1. Строгая слоистая архитектура (Layered SoC)
 
 Зависимости в проекте должны идти строго в одном направлении:
 
@@ -38,7 +43,7 @@
 
 ---
 
-## 2. Файловая гигиена (Repository Cleanliness Standards)
+## 3.2. Файловая гигиена (Repository Cleanliness Standards)
 
 - **Корень проекта (`/`):** Должен содержать **только** стандартные конфигурационные файлы проекта (`package.json`, `tsconfig.json`, `vite.config.ts`, `vitest.config.ts`, `electron-builder.yml`, `tailwind.config.js`, `index.html`, `README.md`, `GEMINI.md`, `AGENTS.md`, `.gitignore`).
 - **Запрет мусорных файлов в корне:** Запрещено оставлять в корне тестовые JSON (`temp_*.json`), дампы сетевых отчетов, инциденты или файлы логов.
