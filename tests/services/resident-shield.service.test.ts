@@ -1,4 +1,23 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+vi.mock('../../electron/utils/exec', () => ({
+  execFileAsync: vi.fn(async (file: string, args: string[] = []) => {
+    if (file.includes('tzutil')) {
+      if (args.includes('/g')) return { stdout: 'Tomsk Standard Time\r\n', stderr: '' }
+      return { stdout: '', stderr: '' }
+    }
+    if (file.includes('sc.exe')) {
+      return { stdout: 'STATE: 4 RUNNING\r\n', stderr: '' }
+    }
+    return { stdout: 'Running\r\n', stderr: '' }
+  }),
+  execFileSyncSafe: vi.fn((file: string) => {
+    if (file.includes('tzutil')) return 'Tomsk Standard Time'
+    return ''
+  }),
+  setRegistryDword: vi.fn(async () => true)
+}))
+
 import { ResidentShieldService } from '../../electron/services/resident-shield.service'
 
 describe('ResidentShieldService Full Lifecycle', () => {

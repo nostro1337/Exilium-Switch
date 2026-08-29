@@ -57,6 +57,9 @@ export class NetworkService {
   }
 
   public async flushDns(): Promise<void> {
+    if (process.env.VITEST || process.env.NODE_ENV === 'test') {
+      return
+    }
     try {
       await execFileAsync('ipconfig.exe', ['/flushdns'])
     } catch {}
@@ -80,27 +83,29 @@ export class NetworkService {
     // 1. Flush DNS and NetBIOS
     await this.flushDns()
 
-    // 2. Clear Antigravity IDE Cache directories on disk
+    // 2. Clear Antigravity IDE Cache directories on disk (skip during automated tests to avoid wiping live developer session)
     let purgedDirs = 0
-    try {
-      const appData = process.env.APPDATA || ''
-      if (appData) {
-        const ideCacheDirs = [
-          path.join(appData, 'antigravity-ide', 'Cache'),
-          path.join(appData, 'antigravity-ide', 'Code Cache'),
-          path.join(appData, 'antigravity-ide', 'GPUCache'),
-          path.join(appData, 'antigravity-ide', 'DawnGraphiteCache')
-        ]
-        for (const dir of ideCacheDirs) {
-          if (fs.existsSync(dir)) {
-            try {
-              fs.rmSync(dir, { recursive: true, force: true })
-              purgedDirs++
-            } catch {}
+    if (!process.env.VITEST && process.env.NODE_ENV !== 'test') {
+      try {
+        const appData = process.env.APPDATA || ''
+        if (appData) {
+          const ideCacheDirs = [
+            path.join(appData, 'antigravity-ide', 'Cache'),
+            path.join(appData, 'antigravity-ide', 'Code Cache'),
+            path.join(appData, 'antigravity-ide', 'GPUCache'),
+            path.join(appData, 'antigravity-ide', 'DawnGraphiteCache')
+          ]
+          for (const dir of ideCacheDirs) {
+            if (fs.existsSync(dir)) {
+              try {
+                fs.rmSync(dir, { recursive: true, force: true })
+                purgedDirs++
+              } catch {}
+            }
           }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     logService.addLog(`✓ Кэш Antigravity IDE (очищено папок: ${purgedDirs}) и сетевой стек Windows успешно сброшены!`, 'success', undefined, 'system')
     return { success: true, message: 'Кэш IDE и DNS успешно очищены' }
