@@ -52,6 +52,7 @@ describe('IPC Handlers Execution Suite', () => {
     expect(handlers[IPC_CHANNELS.SET_APP_MODE]).toBeDefined()
     const modeRes = await handlers[IPC_CHANNELS.SET_APP_MODE]({}, 'office')
     expect(modeRes).toEqual({ success: true, mode: 'office' })
+    await handlers[IPC_CHANNELS.SET_APP_MODE]({}, 'home')
   }, 35000)
 
   it('should execute Profile handlers (GET_PROFILES, SELECT_PROFILE, DELETE_PROFILE)', async () => {

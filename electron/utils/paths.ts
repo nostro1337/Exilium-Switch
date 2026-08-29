@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import os from 'node:os'
 
 export function isDevBuild(): boolean {
   if (process.env.EXILIUM_DEV_BUILD === 'true') return true
@@ -21,6 +22,13 @@ export function getRealExePath(): string {
 }
 
 export function getAppDataDir(): string {
+  if (process.env.VITEST || process.env.NODE_ENV === 'test') {
+    const testDir = path.join(os.tmpdir(), 'ExiliumSwitch-Test')
+    if (!fs.existsSync(testDir)) {
+      fs.mkdirSync(testDir, { recursive: true })
+    }
+    return testDir
+  }
   const isDev = isDevBuild()
   const folderName = isDev ? 'ExiliumSwitch-Dev' : 'ExiliumSwitch'
   let baseDir: string

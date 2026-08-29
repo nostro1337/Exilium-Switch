@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
+vi.mock('../../electron/utils/exec', () => ({
+  execFileAsync: vi.fn(async () => ({ stdout: '', stderr: '' })),
+  execFileSyncSafe: vi.fn(() => ''),
+  setRegistryDword: vi.fn(async () => true)
+}))
+
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => 'C:\\MockAppData'),
