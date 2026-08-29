@@ -24,15 +24,26 @@ export const DISCORD_DOMAINS = [
 ]
 
 export const STREAMING_AND_AI_DOMAINS = [
-  // YouTube & Google Media / Services
+  // Google Core, Identity, Auth & CDN (Crucial for IDE / OAuth / Gemini login)
+  "google.com", "google.co", "google.net", "google.org", "google.dev", "google.io",
+  "accounts.google.com", "myaccount.google.com", "oauth2.googleapis.com",
+  // Google APIs, Cloud & IDE Backends
+  "googleapis.com", "gstatic.com", "googleusercontent.com", "googlevideo.com", "1e100.net",
+  "cloud.google.com", "cloudresourcemanager.googleapis.com",
+  "cloudaicompanion.googleapis.com", "generativelanguage.googleapis.com",
+  "aiplatform.googleapis.com", "developerconnect.googleapis.com",
+  "firebase.googleapis.com", "firebaseio.com",
+  // Gemini, MakerSuite, AI Studio & Developer Tools
+  "gemini.google.com", "ai.google.dev", "aistudio.google.com",
+  "alkalimakersuite-pa.clients6.google.com",
+  // YouTube
   "youtube.com", "youtu.be", "ytimg.com", "googlevideo.com", "yt.be",
   "youtubei.googleapis.com", "youtube-nocookie.com", "ggpht.com",
-  "googleapis.com", "gstatic.com", "googleusercontent.com",
-  // Gemini & Google AI & IDE APIs
-  "generativelanguage.googleapis.com", "ai.google.dev", "gemini.google.com",
-  "alkalimakersuite-pa.clients6.google.com", "aistudio.google.com",
-  // Modern AI & Dev Services
-  "openai.com", "anthropic.com", "claude.ai", "groq.com", "huggingface.co"
+  // Google Video / Tools / Extension CDN
+  "gvt1.com", "gvt2.com", "gvt3.com",
+  // Modern AI & Dev Ecosystem
+  "openai.com", "anthropic.com", "claude.ai", "groq.com", "huggingface.co",
+  "deepseek.com", "mistral.ai", "cohere.com", "cursor.sh", "cursor.com", "codeium.com"
 ]
 
 export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'home'): { config: Record<string, unknown>; name: string } {
@@ -208,7 +219,7 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
         address: ["172.19.0.1/30"],
         mtu: 1400,
         auto_route: true,
-        strict_route: false,
+        strict_route: true,
         endpoint_independent_nat: true,
         stack: "system"
       }

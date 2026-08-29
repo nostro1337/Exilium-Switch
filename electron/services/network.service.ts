@@ -57,6 +57,17 @@ export class NetworkService {
     try {
       await execFileAsync('ipconfig.exe', ['/flushdns'])
     } catch {}
+    try {
+      await execFileAsync('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'Clear-DnsClientCache -ErrorAction SilentlyContinue'
+      ])
+    } catch {}
+    try {
+      await execFileAsync('nbtstat.exe', ['-R'])
+    } catch {}
   }
 
   public async testLatency(targetHost = DEFAULT_PING_TARGET, targetPort = 443): Promise<{ latencyMs: number | null; error?: string }> {

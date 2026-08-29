@@ -9,6 +9,7 @@ import { ProfileService } from './profile.service'
 import { SettingsService } from './settings.service'
 import { ResidentShieldService } from './resident-shield.service'
 import { ZapretService } from './zapret.service'
+import { NetworkService } from './network.service'
 import { NotificationService } from './notification.service'
 import { StateMachine } from '../core/state-machine'
 import type { VpnStatus } from '../../shared/types'
@@ -149,6 +150,7 @@ export class SingBoxService {
           if (alive) {
             this.startTime = Date.now()
             logService.addLog(`sing-box активен (PID: ${child.pid}, Профиль: "${activeProfile.name}").`, 'success')
+            await NetworkService.getInstance().flushDns()
             resolve(true)
           } else {
             logService.addLog('sing-box завершился сразу после старта. Проверьте JSON-конфиг.', 'error')
@@ -197,6 +199,7 @@ export class SingBoxService {
 
     const finalCheck = await this.isRunning()
     if (!finalCheck) {
+      await NetworkService.getInstance().flushDns()
       logService.addLog('Процесс sing-box успешно остановлен.', 'info')
       return true
     } else {

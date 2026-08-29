@@ -92,6 +92,14 @@ describe('VLESS Parser & Config Generator Engine', () => {
     expect(() => convertVlessToSingBoxConfig(invalidSecurity)).toThrowError('не поддерживается')
   })
 
+  it('should generate tun inbound with strict_route enabled for zero leak', () => {
+    const { config } = convertVlessToSingBoxConfig(sampleVlessReality, 'home')
+    const inbounds = config.inbounds as Record<string, unknown>[]
+    expect(inbounds).toBeDefined()
+    expect(inbounds[0].strict_route).toBe(true)
+    expect(inbounds[0].auto_route).toBe(true)
+  })
+
   it('should contain comprehensive Russian/CIS domain list and Discord list', () => {
     expect(RUSSIAN_AND_CIS_DOMAINS).toContain('ru')
     expect(RUSSIAN_AND_CIS_DOMAINS).toContain('yandex.ru')
@@ -101,5 +109,8 @@ describe('VLESS Parser & Config Generator Engine', () => {
     expect(DISCORD_DOMAINS).toContain('discord.gg')
     expect(STREAMING_AND_AI_DOMAINS).toContain('youtube.com')
     expect(STREAMING_AND_AI_DOMAINS).toContain('generativelanguage.googleapis.com')
+    expect(STREAMING_AND_AI_DOMAINS).toContain('google.com')
+    expect(STREAMING_AND_AI_DOMAINS).toContain('accounts.google.com')
+    expect(STREAMING_AND_AI_DOMAINS).toContain('1e100.net')
   })
 })
