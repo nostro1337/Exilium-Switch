@@ -20,8 +20,15 @@ export function App() {
   const [profilesOpen, setProfilesOpen] = useState(false)
   const [updateModalOpen, setUpdateModalOpen] = useState(false)
   const [diagnosisOpen, setDiagnosisOpen] = useState(false)
+  const [appVersion, setAppVersion] = useState('1.5.7')
 
   const currentMode: AppMode = (status.appMode || settings.appMode || 'home') as AppMode
+
+  useEffect(() => {
+    window.electronAPI?.getAppVersion?.().then((v) => {
+      if (v) setAppVersion(v)
+    })
+  }, [])
 
   // Listen for update notification click
   useEffect(() => {
@@ -127,7 +134,7 @@ export function App() {
       {/* Update Center Modal */}
       <UpdateModal
         isOpen={updateModalOpen}
-        currentVersion="1.5.6"
+        currentVersion={appVersion}
         onClose={() => setUpdateModalOpen(false)}
       />
     </div>

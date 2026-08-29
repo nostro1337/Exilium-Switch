@@ -29,4 +29,8 @@ export function registerSystemIpc(): void {
   ipcMain.handle(IPC_CHANNELS.IS_DEV_BUILD, () => {
     return isDevBuild()
   })
+
+  ipcMain.handle(IPC_CHANNELS.CLEAR_IDE_AND_DNS_CACHE, async () => {
+    return await networkService.clearIdeAndDnsCache()
+  })
 }

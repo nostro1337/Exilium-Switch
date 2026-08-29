@@ -55,6 +55,7 @@ export interface IpcApi {
 
   // System & Environment
   isDevBuild: () => Promise<boolean>
+  clearIdeAndDnsCache: () => Promise<{ success: boolean; message: string }>
 
   // Auto Updater
   getAppVersion: () => Promise<string>
@@ -72,6 +73,7 @@ export interface IpcApi {
 
 const api: IpcApi = {
   isDevBuild: () => ipcRenderer.invoke(IPC_CHANNELS.IS_DEV_BUILD),
+  clearIdeAndDnsCache: () => ipcRenderer.invoke(IPC_CHANNELS.CLEAR_IDE_AND_DNS_CACHE),
   getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.GET_STATUS),
   toggleVpn: (enable) => ipcRenderer.invoke(IPC_CHANNELS.TOGGLE_VPN, enable),
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS),

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Settings, Save, X, RotateCcw, ShieldCheck, Laptop, Sparkles } from 'lucide-react'
-import type { AppSettings } from '../../electron/preload'
+import { Settings, Save, X, RotateCcw, ShieldCheck, Laptop, Sparkles, Trash2, CheckCircle2, RefreshCw } from 'lucide-react'
+import type { AppSettings } from '../../shared/types'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -15,11 +15,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
     fakeZone: 'W. Europe Standard Time',
     autoStart: false,
     minimizeToTray: true,
-    startMinimized: false
+    startMinimized: false,
+    coexistWithZapret: true
   })
   const [saving, setSaving] = useState(false)
   const [savedSuccess, setSavedSuccess] = useState(false)
-  const [version, setVersion] = useState('1.3.1')
+  const [version, setVersion] = useState('1.5.7')
+  const [isDev, setIsDev] = useState(false)
+  const [clearingCache, setClearingCache] = useState(false)
+  const [cacheClearedSuccess, setCacheClearedSuccess] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -28,6 +32,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
       })
       window.electronAPI?.getAppVersion?.().then((v) => {
         if (v) setVersion(v)
+      })
+      window.electronAPI?.isDevBuild?.().then((dev) => {
+        setIsDev(Boolean(dev))
       })
     }
   }, [isOpen])
@@ -43,7 +50,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
   const handleSave = async () => {
     setSaving(true)
     try {
-      await window.electronAPI?.saveSettings(settings)
+      await window.electronAPI?.saveSettings({
+        realZone: settings.realZone,
+        fakeZone: settings.fakeZone,
+        autoStart: settings.autoStart,
+        minimizeToTray: settings.minimizeToTray,
+        startMinimized: settings.startMinimized,
+        coexistWithZapret: settings.coexistWithZapret
+      })
       setSavedSuccess(true)
       setTimeout(() => {
         setSavedSuccess(false)
@@ -51,6 +65,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
       }, 600)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handlePurgeIdeCache = async () => {
+    if (clearingCache) return
+    setClearingCache(true)
+    try {
+      const res = await window.electronAPI?.clearIdeAndDnsCache?.()
+      if (res && res.success) {
+        setCacheClearedSuccess(true)
+        setTimeout(() => setCacheClearedSuccess(false), 3000)
+      }
+    } finally {
+      setClearingCache(false)
     }
   }
 
@@ -63,7 +91,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
       startMinimized: false,
       coexistWithZapret: true
     }
-    setSettings(defaults)
+    setSettings((prev) => ({ ...prev, ...defaults }))
     await window.electronAPI?.saveSettings(defaults)
   }
 
@@ -89,17 +117,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
           <div className="flex items-center gap-2 text-xs font-semibold text-zinc-100">
             <Settings className="w-3.5 h-3.5 text-zinc-300" strokeWidth={1.75} />
             <span>Параметры Exilium Switch</span>
+            <span
+              className={`text-[8.5px] font-mono px-1.5 py-0.5 rounded font-bold border ${
+                isDev
+                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                  : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+              }`}
+            >
+              {isDev ? 'DEV' : 'STABLE'}
+            </span>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-3.5 h-3.5" strokeWidth={1.75} />
           </button>
         </div>
 
         {/* Form Body */}
-        <div className="p-4 space-y-4 text-xs">
+        <div className="p-4 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
           {/* Resident Mode Config */}
           <div className="space-y-2.5">
             <div className="flex items-center gap-1.5 font-medium text-zinc-200">
@@ -187,11 +224,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
             </label>
           </div>
 
+          <div className="h-[1px] bg-white/[0.08]" />
+
+          {/* Quick Repair Tool: Antigravity IDE & DNS Cache Purge */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <span className="text-zinc-200 text-[11px] font-medium">Сброс кэша IDE и DNS</span>
+                <span className="text-zinc-500 text-[10px]">Очищает кэш Antigravity/Gemini и сбрасывает DNS Windows</span>
+              </div>
+              <button
+                type="button"
+                onClick={handlePurgeIdeCache}
+                disabled={clearingCache}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium transition-all cursor-pointer shrink-0 ${
+                  cacheClearedSuccess
+                    ? 'bg-emerald-950/80 text-emerald-200 border-emerald-600/50'
+                    : 'bg-white/[0.06] hover:bg-white/10 text-zinc-200 border-white/10'
+                }`}
+              >
+                {clearingCache ? (
+                  <RefreshCw className="w-3 h-3 animate-spin text-zinc-300" />
+                ) : cacheClearedSuccess ? (
+                  <CheckCircle2 className="w-3 h-3 text-emerald-300" />
+                ) : (
+                  <Trash2 className="w-3 h-3 text-zinc-400" />
+                )}
+                <span>{cacheClearedSuccess ? 'Очищено!' : clearingCache ? 'Сброс...' : 'Очистить'}</span>
+              </button>
+            </div>
+          </div>
+
           {/* App Update Checker */}
           <div className="pt-2 border-t border-white/5 flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="text-[11px] font-medium text-zinc-300">Версия Exilium Switch</span>
-              <span className="text-[10px] text-zinc-500 font-mono">v{version}</span>
+              <span className="text-[11px] font-medium text-zinc-300">Хранилище конфигурации</span>
+              <span className="text-[9.5px] text-zinc-500 font-mono">
+                {isDev ? '%APPDATA%\\ExiliumSwitch-Dev' : '%APPDATA%\\ExiliumSwitch'}
+              </span>
             </div>
             {onCheckUpdates && (
               <button
@@ -200,7 +270,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/10 text-zinc-200 border border-white/10 text-[11px] font-medium transition-colors cursor-pointer"
               >
                 <Sparkles size={12} className="text-zinc-300" />
-                <span>Проверить обновления</span>
+                <span>Обновления</span>
               </button>
             )}
           </div>
@@ -218,7 +288,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               <RotateCcw className="w-3 h-3" strokeWidth={1.75} />
               <span>Сброс</span>
             </button>
-            <span className="text-[10px] text-zinc-600 font-mono">by Nostro</span>
+            <span className="text-[10px] text-zinc-600 font-mono">v{version}</span>
           </div>
 
           <div className="flex items-center gap-2">

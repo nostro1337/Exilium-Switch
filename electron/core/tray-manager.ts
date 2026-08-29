@@ -4,6 +4,7 @@ import path from 'node:path'
 import { ensureCachedIcons, isDevBuild } from '../utils/paths'
 import { WindowManager } from './window-manager'
 import { SingBoxService } from '../services/singbox.service'
+import { NetworkService } from '../services/network.service'
 import { ProfileService } from '../services/profile.service'
 import { LogService } from '../services/log.service'
 
@@ -107,6 +108,12 @@ export class TrayManager {
         label: isRunning ? 'Отключить Resident Shield' : 'Включить Resident Shield',
         click: async () => {
           await SingBoxService.getInstance().toggle()
+        }
+      },
+      {
+        label: 'Сбросить кэш IDE и DNS',
+        click: async () => {
+          await NetworkService.getInstance().clearIdeAndDnsCache()
         }
       },
       { type: 'separator' },

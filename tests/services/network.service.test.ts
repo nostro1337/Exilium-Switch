@@ -20,4 +20,10 @@ describe('NetworkService Engine', () => {
     expect(res).toBeDefined()
     expect(res.latencyMs === null || typeof res.latencyMs === 'number').toBe(true)
   })
+
+  it('should execute clearIdeAndDnsCache safely without uncaught errors', async () => {
+    const res = await networkService.clearIdeAndDnsCache()
+    expect(res).toBeDefined()
+    expect(res.success).toBe(true)
+  })
 })

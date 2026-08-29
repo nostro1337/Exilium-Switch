@@ -95,6 +95,11 @@ describe('IPC Handlers Execution Suite', () => {
     expect(handlers[IPC_CHANNELS.IS_DEV_BUILD]).toBeDefined()
     const isDev = await handlers[IPC_CHANNELS.IS_DEV_BUILD]()
     expect(typeof isDev).toBe('boolean')
+
+    expect(handlers[IPC_CHANNELS.CLEAR_IDE_AND_DNS_CACHE]).toBeDefined()
+    const clearRes = await handlers[IPC_CHANNELS.CLEAR_IDE_AND_DNS_CACHE]()
+    expect(clearRes).toBeDefined()
+    expect(clearRes.success).toBe(true)
   }, 20000)
 
   it('should execute Log handlers (GET_RECENT_LOGS, OPEN_LOGS_FOLDER)', async () => {

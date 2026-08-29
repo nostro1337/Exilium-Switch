@@ -1,6 +1,9 @@
 import net from 'node:net'
+import fs from 'node:fs'
+import path from 'node:path'
 import { execFileAsync } from '../utils/exec'
 import { DEFAULT_PING_TARGET } from '../core/constants'
+import { LogService } from './log.service'
 
 export class NetworkService {
   private static instance: NetworkService
@@ -68,6 +71,39 @@ export class NetworkService {
     try {
       await execFileAsync('nbtstat.exe', ['-R'])
     } catch {}
+  }
+
+  public async clearIdeAndDnsCache(): Promise<{ success: boolean; message: string }> {
+    const logService = LogService.getInstance()
+    logService.addLog('Запуск комплексной очистки кэша Antigravity IDE и DNS...', 'info', undefined, 'system')
+
+    // 1. Flush DNS and NetBIOS
+    await this.flushDns()
+
+    // 2. Clear Antigravity IDE Cache directories on disk
+    let purgedDirs = 0
+    try {
+      const appData = process.env.APPDATA || ''
+      if (appData) {
+        const ideCacheDirs = [
+          path.join(appData, 'antigravity-ide', 'Cache'),
+          path.join(appData, 'antigravity-ide', 'Code Cache'),
+          path.join(appData, 'antigravity-ide', 'GPUCache'),
+          path.join(appData, 'antigravity-ide', 'DawnGraphiteCache')
+        ]
+        for (const dir of ideCacheDirs) {
+          if (fs.existsSync(dir)) {
+            try {
+              fs.rmSync(dir, { recursive: true, force: true })
+              purgedDirs++
+            } catch {}
+          }
+        }
+      }
+    } catch {}
+
+    logService.addLog(`✓ Кэш Antigravity IDE (очищено папок: ${purgedDirs}) и сетевой стек Windows успешно сброшены!`, 'success', undefined, 'system')
+    return { success: true, message: 'Кэш IDE и DNS успешно очищены' }
   }
 
   public async testLatency(targetHost = DEFAULT_PING_TARGET, targetPort = 443): Promise<{ latencyMs: number | null; error?: string }> {

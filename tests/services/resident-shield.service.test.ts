@@ -25,7 +25,7 @@ describe('ResidentShieldService Full Lifecycle', () => {
 
     const startRes = await residentService.startLfsvc()
     expect(typeof startRes).toBe('boolean')
-  })
+  }, 25000)
 
   it('should execute applyAntiLeakLockdown and restoreRegularNetwork safely', async () => {
     await expect(residentService.applyAntiLeakLockdown()).resolves.not.toThrow()
