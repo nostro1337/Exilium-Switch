@@ -12,6 +12,12 @@ export function useSettings() {
 
   useEffect(() => {
     reloadSettings()
+    const unsubscribe = window.electronAPI?.onSettingsChange?.((updated) => {
+      if (updated) setSettings(updated)
+    })
+    return () => {
+      if (unsubscribe) unsubscribe()
+    }
   }, [reloadSettings])
 
   const updateSettings = useCallback(async (partial: Partial<AppSettings>) => {

@@ -52,13 +52,24 @@ describe('LogService Ring Buffer & Parser', () => {
   })
 
   it('should maintain max buffer capacity without unbounded memory growth', () => {
-    for (let i = 0; i < 1100; i++) {
+    for (let i = 0; i < 1600; i++) {
       logService.addLog(`Строка лога #${i}`, 'info')
     }
 
     const logs = logService.getRecentLogs()
-    expect(logs.length).toBeLessThanOrEqual(1000)
-    expect(logs[logs.length - 1].text).toBe('Строка лога #1099')
+    expect(logs.length).toBeLessThanOrEqual(1500)
+    expect(logs[logs.length - 1].text).toBe('Строка лога #1599')
+  })
+
+  it('should assign categories based on content and level', () => {
+    const netLog = logService.parseSingBoxLine('inbound/tun[tun-in]: connection to 1.1.1.1:443')
+    expect(netLog.category).toBe('traffic')
+
+    const secLog = logService.addLog('Resident Shield активирован, fakeZone установлен', 'info')
+    expect(secLog.category).toBe('security')
+
+    const errLog = logService.addLog('Критическая ошибка DNS', 'error')
+    expect(errLog.category).toBe('error')
   })
 
   it('should export logs and open logs folder without exceptions', () => {

@@ -60,7 +60,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
       fakeZone: 'W. Europe Standard Time',
       autoStart: false,
       minimizeToTray: true,
-      startMinimized: false
+      startMinimized: false,
+      coexistWithZapret: true
     }
     setSettings(defaults)
     await window.electronAPI?.saveSettings(defaults)
@@ -141,6 +142,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               <Laptop className="w-3.5 h-3.5 text-zinc-400" strokeWidth={1.75} />
               <span>Интеграция с системой</span>
             </div>
+
+            <label className="flex items-center justify-between cursor-pointer group">
+              <div className="flex flex-col pr-2">
+                <span className="text-zinc-200 text-[11px] font-medium">Авто-пауза Zapret (winws) при VPN</span>
+                <span className="text-zinc-500 text-[10px]">Исключает конфликт пакетов для YouTube и Discord Voice</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.coexistWithZapret ?? true}
+                onChange={(e) => handleToggle('coexistWithZapret', e.target.checked)}
+                className="w-4 h-4 rounded accent-white cursor-pointer shrink-0"
+              />
+            </label>
 
             <label className="flex items-center justify-between cursor-pointer group">
               <span className="text-zinc-300 text-[11px]">Сворачивать в системный трей при закрытии (X)</span>

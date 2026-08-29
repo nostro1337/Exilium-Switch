@@ -1,6 +1,7 @@
 import { execFileAsync, execFileSyncSafe, setRegistryDword } from '../utils/exec'
 import { NetworkService } from './network.service'
 import { LogService } from './log.service'
+import { ZapretService } from './zapret.service'
 import { AMSTERDAM_TIMEZONE, FALLBACK_TIMEZONE } from '../core/constants'
 
 export class ResidentShieldService {
@@ -329,6 +330,9 @@ export class ResidentShieldService {
         '/d', 'Allow',
         '/f'
       ])
+    } catch {}
+    try {
+      ZapretService.getInstance().syncEmergencyResume()
     } catch {}
   }
 }

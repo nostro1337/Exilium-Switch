@@ -1,5 +1,6 @@
 import { SingBoxService } from './singbox.service'
 import { ResidentShieldService } from './resident-shield.service'
+import { ZapretService } from './zapret.service'
 import { LogService } from './log.service'
 import { SettingsService } from './settings.service'
 
@@ -22,6 +23,7 @@ export class FailsafeService {
     const logService = LogService.getInstance()
     const singboxService = SingBoxService.getInstance()
     const residentService = ResidentShieldService.getInstance()
+    const zapretService = ZapretService.getInstance()
     const settingsService = SettingsService.getInstance()
 
     try {
@@ -41,6 +43,9 @@ export class FailsafeService {
 
         // Restore lfsvc in case of past unclean termination
         await residentService.startLfsvc()
+
+        // Resume zapret if it was suspended before unclean shutdown
+        await zapretService.resumeZapretIfPaused()
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)

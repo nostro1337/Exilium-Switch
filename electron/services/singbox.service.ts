@@ -8,6 +8,7 @@ import { LogService } from './log.service'
 import { ProfileService } from './profile.service'
 import { SettingsService } from './settings.service'
 import { ResidentShieldService } from './resident-shield.service'
+import { ZapretService } from './zapret.service'
 import { NotificationService } from './notification.service'
 import { StateMachine } from '../core/state-machine'
 import type { VpnStatus } from '../../shared/types'
@@ -241,6 +242,9 @@ export class SingBoxService {
           logService.addLog(`Запуск ядра sing-box в режиме «Офис» [${activeProfile.name}] (сетевые адаптеры ОС не изменяются)...`, 'info')
         }
 
+        // Suspend zapret (winws) before tunnel start to ensure zero packet corruption for YouTube/Discord
+        await ZapretService.getInstance().pauseZapretIfRunning()
+
         const started = await this.start()
         if (started) {
           stateMachine.setState('connected')
@@ -264,6 +268,7 @@ export class SingBoxService {
           if (!isOffice) {
             await residentService.disableResidentMode(settings.realZone)
           }
+          await ZapretService.getInstance().resumeZapretIfPaused()
           notifService.showNotification('Exilium Switch — Ошибка старта', 'Не удалось запустить sing-box.', true)
           return { success: false, isRunning: false, error: 'sing-box start failed' }
         }
@@ -275,6 +280,9 @@ export class SingBoxService {
         if (!isOffice) {
           await residentService.disableResidentMode(settings.realZone)
         }
+
+        // Resume zapret automatically if it was active before VPN
+        await ZapretService.getInstance().resumeZapretIfPaused()
 
         stateMachine.setState('disconnected')
         logService.addLog('✓ Туннель успешно отключен.', 'info')

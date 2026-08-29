@@ -98,7 +98,7 @@ export class ProfileService {
       const fullPath = path.join(profilesDir, file)
       const id = path.basename(file, '.json')
       const name = meta[id]?.name || id.replace(/[-_]/g, ' ')
-      const mode: AppMode = meta[id]?.mode || (id.toLowerCase().includes('office') || id.toLowerCase().includes('work') || id.toLowerCase().includes('aviabasa') ? 'office' : 'home')
+      const mode: AppMode = meta[id]?.mode || (id.toLowerCase().includes('aviabasa') ? 'office' : 'home')
 
       let createdAt = Date.now()
       try {
@@ -118,7 +118,7 @@ export class ProfileService {
 
     const filtered = filterMode ? profiles.filter(p => p.mode === filterMode) : profiles
 
-    // If active profile is not set or not in filtered list, set first profile as active
+    // If active profile is not set or not in filtered list, set first profile as active for currentMode
     if (filtered.length > 0 && !filtered.some(p => p.isActive)) {
       filtered[0].isActive = true
       const updatedMap = { ...(settings.activeProfileIdByMode || {}), [currentMode]: filtered[0].id }
@@ -291,16 +291,31 @@ export class ProfileService {
     if (fs.existsSync(targetPath)) {
       fs.unlinkSync(targetPath)
     }
+    const meta = this.loadMeta()
+    const profileMode = meta[profileId]?.mode || 'home'
     this.deleteMeta(profileId)
 
     const settingsService = SettingsService.getInstance()
     const settings = settingsService.loadSettings()
-    if (settings.activeProfileId === profileId) {
-      const remaining = this.getProfiles()
-      settingsService.saveSettings({ activeProfileId: remaining.length > 0 ? remaining[0].id : undefined })
+    const updatedMap = { ...(settings.activeProfileIdByMode || {}) }
+    
+    if (updatedMap[profileMode] === profileId) {
+      const remainingInMode = this.getProfiles(profileMode).filter(p => p.id !== profileId)
+      updatedMap[profileMode] = remainingInMode.length > 0 ? remainingInMode[0].id : undefined
     }
 
-    LogService.getInstance().addLog('Профиль удален.', 'info')
+    if (settings.activeProfileId === profileId) {
+      const currentAppMode = settings.appMode || 'home'
+      const remainingInCurrentMode = this.getProfiles(currentAppMode).filter(p => p.id !== profileId)
+      settingsService.saveSettings({
+        activeProfileId: remainingInCurrentMode.length > 0 ? remainingInCurrentMode[0].id : undefined,
+        activeProfileIdByMode: updatedMap
+      })
+    } else {
+      settingsService.saveSettings({ activeProfileIdByMode: updatedMap })
+    }
+
+    LogService.getInstance().addLog(`Профиль [${profileId}] удален.`, 'info')
     return { success: true }
   }
 }

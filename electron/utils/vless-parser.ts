@@ -145,6 +145,11 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
     { domain_suffix: DISCORD_DOMAINS, outbound: "proxy-out" },
     { domain_suffix: STREAMING_AND_AI_DOMAINS, outbound: "proxy-out" },
     {
+      network: "udp",
+      port_range: ["19294:19344", "50000:65535"],
+      outbound: "proxy-out"
+    },
+    {
       ip_cidr: ["149.154.160.0/20", "91.108.4.0/22", "91.108.8.0/22", "91.108.56.0/22"],
       outbound: "proxy-out"
     }

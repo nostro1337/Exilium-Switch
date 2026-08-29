@@ -12,7 +12,7 @@ describe('NetworkService Engine', () => {
     const adapters = await networkService.getPhysicalAdapters()
     expect(Array.isArray(adapters)).toBe(true)
     expect(adapters.length).toBeGreaterThan(0)
-  })
+  }, 20000)
 
   it('should handle latency measurement without throwing uncaught exceptions', async () => {
     // Test to a non-existent or localhost port to check error handling

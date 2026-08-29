@@ -53,6 +53,9 @@ describe('React Custom Hooks (Renderer Process)', () => {
       onStatusChange: vi.fn((cb) => {
         return () => {}
       }),
+      onSettingsChange: vi.fn((cb) => {
+        return () => {}
+      }),
       getRecentLogs: vi.fn(async () => mockLogs),
       getProfiles: vi.fn(async () => []),
       importProfile: vi.fn(async () => ({ success: true })),
@@ -61,7 +64,7 @@ describe('React Custom Hooks (Renderer Process)', () => {
       deleteProfile: vi.fn(async () => ({ success: true })),
       exportLogs: vi.fn(async () => ({ success: true, savedPath: 'C:\\logs.log' })),
       openLogsFolder: vi.fn(async () => {}),
-      getAppVersion: vi.fn(async () => '1.5.6'),
+      getAppVersion: vi.fn(async () => '1.5.7'),
       checkForUpdates: vi.fn(async () => ({ success: true })),
       startUpdateDownload: vi.fn(async () => ({ success: true })),
       quitAndInstallUpdate: vi.fn(async () => {}),

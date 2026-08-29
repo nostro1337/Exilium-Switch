@@ -8,6 +8,7 @@ export const IPC_CHANNELS = {
   // Settings
   GET_SETTINGS: 'get-settings',
   SAVE_SETTINGS: 'save-settings',
+  SETTINGS_UPDATED: 'settings-updated',
 
   // Profiles
   GET_PROFILES: 'get-profiles',

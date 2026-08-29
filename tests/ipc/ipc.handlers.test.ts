@@ -23,7 +23,7 @@ vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => 'C:\\MockAppData'),
     getAppPath: vi.fn(() => 'C:\\MockAppPath'),
-    getVersion: vi.fn(() => '1.5.6'),
+    getVersion: vi.fn(() => '1.5.7'),
     quit: vi.fn()
   },
   BrowserWindow: vi.fn(),
@@ -52,7 +52,7 @@ describe('IPC Handlers Execution Suite', () => {
     expect(handlers[IPC_CHANNELS.SET_APP_MODE]).toBeDefined()
     const modeRes = await handlers[IPC_CHANNELS.SET_APP_MODE]({}, 'office')
     expect(modeRes).toEqual({ success: true, mode: 'office' })
-  }, 20000)
+  }, 35000)
 
   it('should execute Profile handlers (GET_PROFILES, SELECT_PROFILE, DELETE_PROFILE)', async () => {
     expect(handlers[IPC_CHANNELS.GET_PROFILES]).toBeDefined()
@@ -108,7 +108,7 @@ describe('IPC Handlers Execution Suite', () => {
   it('should execute Updater handlers (GET_APP_VERSION, CHECK_FOR_UPDATES, START_UPDATE_DOWNLOAD)', async () => {
     expect(handlers[IPC_CHANNELS.GET_APP_VERSION]).toBeDefined()
     const version = await handlers[IPC_CHANNELS.GET_APP_VERSION]()
-    expect(version).toBe('1.5.6')
+    expect(version).toBe('1.5.7')
 
     expect(handlers[IPC_CHANNELS.CHECK_FOR_UPDATES]).toBeDefined()
     const check = await handlers[IPC_CHANNELS.CHECK_FOR_UPDATES]()

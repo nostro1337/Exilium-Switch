@@ -23,20 +23,23 @@ export function getRealExePath(): string {
 export function getAppDataDir(): string {
   const isDev = isDevBuild()
   const folderName = isDev ? 'ExiliumSwitch-Dev' : 'ExiliumSwitch'
+  let baseDir: string
+
   try {
     if (app && typeof app.getPath === 'function') {
-      const dir = app.getPath('userData')
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true })
-      }
-      return dir
+      baseDir = app.getPath('appData')
+    } else {
+      baseDir = process.env.APPDATA || process.env.USERPROFILE || '.'
     }
-  } catch {}
-  const fallback = path.join(process.env.APPDATA || process.env.USERPROFILE || '.', folderName)
-  if (!fs.existsSync(fallback)) {
-    fs.mkdirSync(fallback, { recursive: true })
+  } catch {
+    baseDir = process.env.APPDATA || process.env.USERPROFILE || '.'
   }
-  return fallback
+
+  const targetDir = path.join(baseDir, folderName)
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true })
+  }
+  return targetDir
 }
 
 export function getProfilesDir(): string {

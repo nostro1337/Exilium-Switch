@@ -38,6 +38,7 @@ export interface IpcApi {
   closeWindow: () => void
   onLog: (callback: (log: LogEntry) => void) => () => void
   onStatusChange: (callback: (status: VpnStatus) => void) => () => void
+  onSettingsChange: (callback: (settings: AppSettings) => void) => () => void
   getRecentLogs: () => Promise<LogEntry[]>
   
   // Profile Management
@@ -96,6 +97,11 @@ const api: IpcApi = {
     const handler = (_event: Electron.IpcRendererEvent, status: VpnStatus) => callback(status)
     ipcRenderer.on(IPC_CHANNELS.STATUS_UPDATED, handler)
     return () => ipcRenderer.removeListener(IPC_CHANNELS.STATUS_UPDATED, handler)
+  },
+  onSettingsChange: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, settings: AppSettings) => callback(settings)
+    ipcRenderer.on(IPC_CHANNELS.SETTINGS_UPDATED, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SETTINGS_UPDATED, handler)
   },
   getRecentLogs: () => ipcRenderer.invoke(IPC_CHANNELS.GET_RECENT_LOGS),
   

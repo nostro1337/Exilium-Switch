@@ -2,14 +2,14 @@ import { app, shell } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { getAppDataDir, isDevBuild } from '../utils/paths'
-import type { LogEntry, LogType } from '../../shared/types'
+import type { LogEntry, LogType, LogCategory } from '../../shared/types'
 
 type LogListener = (entry: LogEntry) => void
 
 export class LogService {
   private static instance: LogService
   private buffer: LogEntry[] = []
-  private readonly maxBufferSize = 1000
+  private readonly maxBufferSize = 1500
   private listeners: Set<LogListener> = new Set()
   private sessionFilePath: string | null = null
 
@@ -36,7 +36,7 @@ export class LogService {
       this.sessionFilePath = path.join(logsDir, `exilium-session-${timestamp}.log`)
 
       const isDev = isDevBuild()
-      const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.5.1'
+      const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.5.6'
       const sessionStart = new Date().toISOString()
       const modeBadge = isDev ? ' [DEV BUILD]' : ''
       const header = `=== EXILIUM SWITCH v${version}${modeBadge} SESSION STARTED [${sessionStart}] (by Nostro) ===\n`
@@ -54,7 +54,7 @@ export class LogService {
     return () => this.listeners.delete(listener)
   }
 
-  public addLog(text: string, type: LogType = 'info', templateId?: string): LogEntry {
+  public addLog(text: string, type: LogType = 'info', templateId?: string, customCategory?: LogCategory): LogEntry {
     const time = new Date().toLocaleTimeString('ru-RU', {
       hour: '2-digit',
       minute: '2-digit',
@@ -62,7 +62,38 @@ export class LogService {
       fractionalSecondDigits: 3
     })
 
-    const entry: LogEntry = { time, text, type, templateId }
+    // Automatic category inference if not explicitly provided
+    let category: LogCategory = customCategory || 'system'
+    const lower = text.toLowerCase()
+
+    if (!customCategory) {
+      if (type === 'error' || type === 'warn' || lower.includes('error') || lower.includes('ошибка') || lower.includes('fatal') || lower.includes('panic:')) {
+        category = 'error'
+      } else if (
+        lower.includes('resident') ||
+        lower.includes('shield') ||
+        lower.includes('lfsvc') ||
+        lower.includes('timezone') ||
+        lower.includes('часовой пояс') ||
+        lower.includes('dns anti-leak') ||
+        lower.includes('геолокация') ||
+        lower.includes('wintun')
+      ) {
+        category = 'security'
+      } else if (
+        lower.includes('inbound') ||
+        lower.includes('outbound') ||
+        lower.includes('router:') ||
+        lower.includes('dns:') ||
+        lower.includes('match[') ||
+        lower.includes('sniff') ||
+        lower.includes('sing-box')
+      ) {
+        category = 'traffic'
+      }
+    }
+
+    const entry: LogEntry = { time, text, type, category, templateId }
 
     this.buffer.push(entry)
     if (this.buffer.length > this.maxBufferSize) {
@@ -75,7 +106,9 @@ export class LogService {
         this.initSessionFile()
       }
       if (this.sessionFilePath) {
-        const line = `[${time}] [${type.toUpperCase().padEnd(3)}] ${text}\n`
+        const catBadge = `[${category.toUpperCase().padEnd(8)}]`
+        const typeBadge = `[${type.toUpperCase().padEnd(4)}]`
+        const line = `[${time}] ${catBadge} ${typeBadge} ${text}\n`
         fs.appendFileSync(this.sessionFilePath, line, 'utf-8')
       }
     } catch {}
@@ -104,19 +137,24 @@ export class LogService {
     const line = rawLine.trim()
     const lower = line.toLowerCase()
     let type: LogType = 'info'
+    let category: LogCategory = 'traffic'
+
     if (line.includes('ERROR') || line.includes('FATAL') || line.includes('[ERR]') || lower.includes('panic:')) {
       type = 'error'
+      category = 'error'
     } else if (line.includes('WARN') || line.includes('[WARN]')) {
       type = 'warn'
+      category = 'error'
     } else if (line.includes('DEBUG') || line.includes('TRACE')) {
       type = 'dev'
     } else if (lower.includes('started') || lower.includes('connected') || lower.includes('ready')) {
       type = 'success'
+      category = 'system'
     }
 
     // Clean timestamp prefixes if sing-box already outputs them
     const cleanText = line.replace(/^\[.*?\]\s*/, '')
-    return this.addLog(cleanText || line, type)
+    return this.addLog(cleanText || line, type, undefined, category)
   }
 
   public exportLogs(): { success: boolean; savedPath?: string; error?: string } {

@@ -9,6 +9,9 @@ export interface AppSettings {
   activeProfileId?: string
   appMode?: AppMode
   activeProfileIdByMode?: Partial<Record<AppMode, string>> | Record<string, string>
+  coexistWithZapret?: boolean
+  zapretScriptPath?: string
+  wasZapretActive?: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -19,5 +22,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   startMinimized: false,
   activeProfileId: undefined,
   appMode: 'home',
-  activeProfileIdByMode: {}
+  activeProfileIdByMode: {},
+  coexistWithZapret: true,
+  zapretScriptPath: undefined,
+  wasZapretActive: false
 }
