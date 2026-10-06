@@ -26,6 +26,48 @@ export class NetworkService {
       return this.physicalAdaptersCache
     }
 
+    const virtualPattern = /sing-?box|wintun|tap|virtual|hyper-v|vethernet|loopback/i
+
+    // 1. Ultra-fast detection via netsh interface show interface (~15ms)
+    try {
+      const { stdout } = await execFileAsync('netsh.exe', ['interface', 'show', 'interface'])
+      const lines = stdout.split(/\r?\n/)
+      const names: string[] = []
+
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed || trimmed.startsWith('---') || trimmed.toLowerCase().includes('interface name') || trimmed.toLowerCase().includes('имя интерфейса')) {
+          continue
+        }
+        let state = ''
+        let name = ''
+        const parts = trimmed.split(/\s{2,}/)
+        if (parts.length >= 4) {
+          state = parts[1].trim().toLowerCase()
+          name = parts.slice(3).join('  ').trim()
+        } else {
+          const match = trimmed.match(/^\S+\s+(\S+)\s+\S+\s+(.+)$/)
+          if (match) {
+            state = match[1].toLowerCase()
+            name = match[2].trim()
+          }
+        }
+        if (name && state) {
+          const isConnected = state === 'connected' || state === 'подключен' || state === 'подключено' || state === 'up'
+          if (isConnected && !virtualPattern.test(name)) {
+            names.push(name)
+          }
+        }
+      }
+
+      if (names.length > 0) {
+        this.physicalAdaptersCache = names
+        this.lastAdapterScan = now
+        return names
+      }
+    } catch {}
+
+    // 2. Fallback via PowerShell Get-NetAdapter
     try {
       const { stdout } = await execFileAsync('powershell.exe', [
         '-NoProfile',
@@ -64,60 +106,44 @@ export class NetworkService {
       await execFileAsync('ipconfig.exe', ['/flushdns'])
     } catch {}
     try {
-      await execFileAsync('powershell.exe', [
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        'Clear-DnsClientCache -ErrorAction SilentlyContinue'
-      ])
-    } catch {}
-    try {
       await execFileAsync('nbtstat.exe', ['-R'])
     } catch {}
   }
 
-  public async clearIdeAndDnsCache(): Promise<{ success: boolean; message: string }> {
-    const logService = LogService.getInstance()
-    logService.addLog('Запуск комплексной очистки кэша Antigravity IDE и DNS...', 'info', undefined, 'system')
-
-    // 1. Flush DNS and NetBIOS
-    await this.flushDns()
-
-    // 2. Clear Antigravity IDE Cache directories on disk (skip during automated tests to avoid wiping live developer session)
-    let purgedDirs = 0
-    if (!process.env.VITEST && process.env.NODE_ENV !== 'test') {
-      try {
-        const appData = process.env.APPDATA || ''
-        if (appData) {
-          const ideCacheDirs = [
-            path.join(appData, 'antigravity-ide', 'Cache'),
-            path.join(appData, 'antigravity-ide', 'Code Cache'),
-            path.join(appData, 'antigravity-ide', 'GPUCache'),
-            path.join(appData, 'antigravity-ide', 'DawnGraphiteCache')
-          ]
-          for (const dir of ideCacheDirs) {
-            if (fs.existsSync(dir)) {
-              try {
-                fs.rmSync(dir, { recursive: true, force: true })
-                purgedDirs++
-              } catch {}
-            }
-          }
-        }
-      } catch {}
-    }
-
-    logService.addLog(`✓ Кэш Antigravity IDE (очищено папок: ${purgedDirs}) и сетевой стек Windows успешно сброшены!`, 'success', undefined, 'system')
-    return { success: true, message: 'Кэш IDE и DNS успешно очищены' }
-  }
-
   public async testLatency(targetHost = DEFAULT_PING_TARGET, targetPort = 443): Promise<{ latencyMs: number | null; error?: string }> {
-    const sampleLatency = (): Promise<number> => {
+    // 1. Try multi-sample physical ICMP ping via Windows ping.exe (2 packets, 1000ms timeout)
+    try {
+      const { stdout } = await execFileAsync('ping.exe', ['-n', '2', '-w', '1000', targetHost], { timeout: 2500 })
+      
+      // Look for Windows summary line first (Average = XXms / Среднее = XX мсек)
+      const avgMatch = stdout.match(/(?:Average|Среднее)\s*=\s*(\d+)\s*(?:ms|мс)?/i)
+      if (avgMatch && avgMatch[1]) {
+        const avgVal = parseInt(avgMatch[1], 10)
+        if (!isNaN(avgVal) && avgVal >= 1) {
+          return { latencyMs: avgVal }
+        }
+      }
+
+      // If summary is missing, parse individual reply lines
+      const matches = Array.from(stdout.matchAll(/(?:time|время)[=<](\d+)\s*(?:ms|мс)?/gi))
+      if (matches.length > 0) {
+        const values = matches
+          .map(m => parseInt(m[1], 10))
+          .filter(v => !isNaN(v) && v >= 1)
+        if (values.length > 0) {
+          const minPing = Math.min(...values)
+          return { latencyMs: minPing }
+        }
+      }
+    } catch {}
+
+    // 2. Fallback to raw TCP socket handshake measurement
+    const sampleTcpLatency = (): Promise<number> => {
       return new Promise<number>((resolve, reject) => {
         const startTime = Date.now()
-        const socket = net.createConnection({ host: targetHost, port: targetPort, timeout: 2500 }, () => {
+        const socket = net.createConnection({ host: targetHost, port: targetPort, timeout: 1500 }, () => {
           const latency = Date.now() - startTime
-          socket.end()
+          socket.destroy()
           resolve(latency)
         })
 
@@ -127,21 +153,19 @@ export class NetworkService {
         })
 
         socket.on('error', (err) => {
+          socket.destroy()
           reject(err)
         })
       })
     }
 
     try {
-      const first = await sampleLatency()
-      // Brief pause between samples
-      await new Promise(r => setTimeout(r, 60))
-      const second = await sampleLatency()
-      const minLatency = Math.min(first, second)
-      return { latencyMs: minLatency }
+      const tcpLatency = await sampleTcpLatency()
+      return { latencyMs: Math.max(3, tcpLatency) }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       return { latencyMs: null, error: message }
     }
   }
 }
+

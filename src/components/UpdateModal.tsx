@@ -37,6 +37,33 @@ interface ChangelogItem {
 
 const CHANGELOG_DATA: ChangelogItem[] = [
   {
+    version: '1.5.8',
+    date: '06.10.2026',
+    isCurrent: true,
+    highlights: [
+      {
+        icon: 'zap',
+        title: 'Ускорение запуска и остановки туннеля (до 85%)',
+        desc: 'Реактивный опрос статуса процесса ядра sing-box вместо фиксированных задержек, легковесный опрос сетевых интерфейсов через native netsh и пакетная настройка параметров адаптеров.'
+      },
+      {
+        icon: 'sparkles',
+        title: 'Охлаждение ресурсов (Resource Cooling)',
+        desc: 'Автоматический троттлинг таймеров и рендера Chromium при сворачивании в трей (backgroundThrottling), кэширование профилей и настроек в ОЗУ, буферизированная запись логов и пауза тикера аптайма.'
+      },
+      {
+        icon: 'shield',
+        title: 'Атомарность переключения и сетевая безопасность',
+        desc: 'Мьютекс StateMachine с поддержкой реентерабельности (AsyncLocalStorage) для предотвращения гонок при смене режимов и гарантированный сброс кэша DNS при любых переходах состояний.'
+      },
+      {
+        icon: 'check',
+        title: 'Облегчение ядра и кодовой базы',
+        desc: 'Очистка устаревших каналов и неиспользуемых компонентов интерфейса для минимального потребления памяти и молниеносного отклика клиента.'
+      }
+    ]
+  },
+  {
     version: '1.5.7',
     date: '29.08.2026',
     highlights: [
@@ -364,6 +391,17 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, currentVersion
       unsubError?.()
     }
   }, [])
+
+  // Escape key support to close modal (if not actively downloading)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && state !== 'downloading' && !isRestarting) {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, state, isRestarting, onClose])
 
   if (!isOpen) return null
 

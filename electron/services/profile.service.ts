@@ -13,6 +13,8 @@ const __dirname = path.dirname(__filename)
 
 export class ProfileService {
   private static instance: ProfileService
+  private cachedProfiles: ConfigProfile[] | null = null
+  private hasCleanedSpam = false
 
   private constructor() {}
 
@@ -21,6 +23,10 @@ export class ProfileService {
       ProfileService.instance = new ProfileService()
     }
     return ProfileService.instance
+  }
+
+  public invalidateCache(): void {
+    this.cachedProfiles = null
   }
 
   private getMetaPath(): string {
@@ -82,13 +88,24 @@ export class ProfileService {
     } catch {}
   }
 
-  public getProfiles(filterMode?: AppMode): ConfigProfile[] {
-    this.cleanTestSpamProfiles()
-    const profilesDir = getProfilesDir()
+  public getProfiles(filterMode?: AppMode, forceRefresh = false): ConfigProfile[] {
+    if (!this.hasCleanedSpam) {
+      this.cleanTestSpamProfiles()
+      this.hasCleanedSpam = true
+    }
+
     const settingsService = SettingsService.getInstance()
     const settings = settingsService.loadSettings()
     const currentMode = filterMode || settings.appMode || 'home'
     const activeId = (settings.activeProfileIdByMode as Record<string, string>)?.[currentMode] || settings.activeProfileId
+
+    if (!forceRefresh && this.cachedProfiles) {
+      const filtered = filterMode ? this.cachedProfiles.filter(p => p.mode === filterMode) : this.cachedProfiles
+      const effectiveActiveId = filtered.some(p => p.id === activeId) ? activeId : (filtered[0]?.id || null)
+      return filtered.map(p => ({ ...p, isActive: p.id === effectiveActiveId }))
+    }
+
+    const profilesDir = getProfilesDir()
     const meta = this.loadMeta()
 
     const files = fs.readdirSync(profilesDir).filter(f => f.endsWith('.json') && f !== 'default.json' && f !== 'profiles_meta.json')
@@ -116,16 +133,21 @@ export class ProfileService {
       })
     }
 
-    const filtered = filterMode ? profiles.filter(p => p.mode === filterMode) : profiles
+    this.cachedProfiles = profiles.sort((a, b) => b.createdAt - a.createdAt)
+    const filtered = filterMode ? this.cachedProfiles.filter(p => p.mode === filterMode) : this.cachedProfiles
 
     // If active profile is not set or not in filtered list, set first profile as active for currentMode
     if (filtered.length > 0 && !filtered.some(p => p.isActive)) {
       filtered[0].isActive = true
       const updatedMap = { ...(settings.activeProfileIdByMode || {}), [currentMode]: filtered[0].id }
-      settingsService.saveSettings({ activeProfileId: filtered[0].id, activeProfileIdByMode: updatedMap })
+      if (currentMode === (settings.appMode || 'home')) {
+        settingsService.saveSettings({ activeProfileId: filtered[0].id, activeProfileIdByMode: updatedMap })
+      } else {
+        settingsService.saveSettings({ activeProfileIdByMode: updatedMap })
+      }
     }
 
-    return filtered.sort((a, b) => b.createdAt - a.createdAt)
+    return filtered
   }
 
   public getActiveProfile(mode?: AppMode): ConfigProfile | null {
@@ -174,6 +196,7 @@ export class ProfileService {
         activeProfileIdByMode: updatedMap
       })
 
+      this.invalidateCache()
       LogService.getInstance().addLog(
         targetMode
           ? `Все профили для режима [${targetMode === 'office' ? 'Офис' : 'Дом'}] успешно удалены (${deletedCount} шт.).`
@@ -216,6 +239,7 @@ export class ProfileService {
       mode
     }
 
+    this.invalidateCache()
     LogService.getInstance().addLog(`Новый профиль "${originalName}" [${mode === 'office' ? 'Офис' : 'Дом'}] успешно импортирован!`, 'success')
     return { success: true, profile: newProfile }
   }
@@ -262,6 +286,7 @@ export class ProfileService {
       mode
     }
 
+    this.invalidateCache()
     LogService.getInstance().addLog(`Профиль "${name}" успешно создан из VLESS-ссылки [${mode === 'office' ? 'Офис' : 'Дом'}]!`, 'success')
     return { success: true, profile: newProfile }
   }
@@ -279,13 +304,21 @@ export class ProfileService {
     const profileMode = meta[profileId]?.mode || settings.appMode || 'home'
     const updatedMap = { ...(settings.activeProfileIdByMode || {}), [profileMode]: profileId }
 
-    settingsService.saveSettings({ activeProfileId: profileId, activeProfileIdByMode: updatedMap })
+    if (profileMode === (settings.appMode || 'home')) {
+      settingsService.saveSettings({ activeProfileId: profileId, activeProfileIdByMode: updatedMap })
+    } else {
+      settingsService.saveSettings({ activeProfileIdByMode: updatedMap })
+    }
+    this.invalidateCache()
     const active = this.getActiveProfile(profileMode)
     LogService.getInstance().addLog(`Активный профиль переключен на: "${active?.name || profileId}"`, 'success')
     return { success: true }
   }
 
   public deleteProfile(profileId: string): { success: boolean; error?: string } {
+    if (!profileId || !profileId.trim()) {
+      return { success: false, error: 'ID профиля не указан' }
+    }
     const profilesDir = getProfilesDir()
     const targetPath = path.join(profilesDir, `${profileId}.json`)
     if (fs.existsSync(targetPath)) {
@@ -315,6 +348,7 @@ export class ProfileService {
       settingsService.saveSettings({ activeProfileIdByMode: updatedMap })
     }
 
+    this.invalidateCache()
     LogService.getInstance().addLog(`Профиль [${profileId}] удален.`, 'info')
     return { success: true }
   }

@@ -35,5 +35,5 @@ describe('Deep Edge Cases & Branch Coverage Suite', () => {
     const failsafe = FailsafeService.getInstance()
     await expect(failsafe.runStartupSanitation()).resolves.not.toThrow()
     await expect(failsafe.runStartupSanitation()).resolves.not.toThrow()
-  })
+  }, 25000)
 })

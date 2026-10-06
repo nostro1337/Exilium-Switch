@@ -9,8 +9,8 @@ import { ProfileService } from './profile.service'
 import { SettingsService } from './settings.service'
 import { ResidentShieldService } from './resident-shield.service'
 import { ZapretService } from './zapret.service'
-import { NetworkService } from './network.service'
 import { NotificationService } from './notification.service'
+import { NetworkService } from './network.service'
 import { StateMachine } from '../core/state-machine'
 import type { VpnStatus } from '../../shared/types'
 
@@ -55,9 +55,9 @@ export class SingBoxService {
   }
 
   /**
-   * Ultra-fast PID-based process check (0.01ms, 0% CPU) with tasklist fallback
+   * Ultra-fast PID-based process check (0.01ms, 0% CPU) with optional external check
    */
-  public async isRunning(): Promise<boolean> {
+  public async isRunning(checkExternal = false): Promise<boolean> {
     if (this.childProcess && this.childProcess.pid) {
       try {
         // Signal 0 tests for process existence in OS without killing it
@@ -68,16 +68,20 @@ export class SingBoxService {
       }
     }
 
-    try {
-      const { stdout } = await execFileAsync('tasklist.exe', [
-        '/FI', 'IMAGENAME eq sing-box.exe',
-        '/FO', 'CSV',
-        '/NH'
-      ])
-      return stdout.toLowerCase().includes('sing-box.exe')
-    } catch {
-      return false
+    if (checkExternal) {
+      try {
+        const { stdout } = await execFileAsync('tasklist.exe', [
+          '/FI', 'IMAGENAME eq sing-box.exe',
+          '/FO', 'CSV',
+          '/NH'
+        ])
+        return stdout.toLowerCase().includes('sing-box.exe')
+      } catch {
+        return false
+      }
     }
+
+    return false
   }
 
   public async start(): Promise<boolean> {
@@ -97,10 +101,10 @@ export class SingBoxService {
     }
 
     // Stop existing instance if any
-    const alreadyRunning = await this.isRunning()
+    const alreadyRunning = await this.isRunning(true)
     if (alreadyRunning) {
       await this.stop()
-      await new Promise(r => setTimeout(r, 500))
+      await new Promise(r => setTimeout(r, 200))
     }
 
     return new Promise((resolve) => {
@@ -144,21 +148,42 @@ export class SingBoxService {
         child.unref()
         this.childProcess = child
 
-        // Verify startup after 1.2s
-        setTimeout(async () => {
-          const alive = await this.isRunning()
-          if (alive) {
-            this.startTime = Date.now()
-            logService.addLog(`sing-box активен (PID: ${child.pid}, Профиль: "${activeProfile.name}").`, 'success')
-            await NetworkService.getInstance().flushDns()
-            resolve(true)
-          } else {
-            logService.addLog('sing-box завершился сразу после старта. Проверьте JSON-конфиг.', 'error')
-            this.childProcess = null
-            this.startTime = null
-            resolve(false)
+        // Reactive PID readiness polling (~25ms interval, checks if process remains stable)
+        let resolved = false
+        const maxChecks = 5 // ~125ms check window (vs 1200ms legacy timeout)
+        let checkCount = 0
+
+        const pollReadiness = async () => {
+          while (checkCount < maxChecks && !resolved) {
+            await new Promise(r => setTimeout(r, 25))
+            checkCount++
+            if (!this.childProcess || !child.pid) break
+
+            try {
+              process.kill(child.pid, 0)
+            } catch {
+              break
+            }
           }
-        }, 1200)
+
+          if (!resolved) {
+            resolved = true
+            const alive = await this.isRunning()
+            if (alive) {
+              this.startTime = Date.now()
+              logService.addLog(`sing-box активен (PID: ${child.pid}, Профиль: "${activeProfile.name}").`, 'success')
+              await NetworkService.getInstance().flushDns()
+              resolve(true)
+            } else {
+              logService.addLog('sing-box завершился сразу после старта. Проверьте JSON-конфиг.', 'error')
+              this.childProcess = null
+              this.startTime = null
+              resolve(false)
+            }
+          }
+        }
+
+        pollReadiness()
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
         logService.addLog(`Исключение при старте sing-box: ${msg}`, 'error')
@@ -171,6 +196,8 @@ export class SingBoxService {
     const logService = LogService.getInstance()
     logService.addLog('Остановка процесса sing-box...', 'info')
 
+    const pid = this.childProcess?.pid
+
     if (this.childProcess && !this.childProcess.killed) {
       try {
         this.childProcess.kill('SIGTERM')
@@ -181,12 +208,26 @@ export class SingBoxService {
       await execFileAsync('taskkill.exe', ['/F', '/IM', 'sing-box.exe', '/T'])
     } catch {}
 
+    // Reactive termination polling (~15ms interval, early resolution)
+    let isDead = false
+    if (pid) {
+      for (let i = 0; i < 15; i++) {
+        try {
+          process.kill(pid, 0)
+          await new Promise(r => setTimeout(r, 15))
+        } catch {
+          isDead = true
+          break
+        }
+      }
+    } else {
+      isDead = true
+    }
+
     this.childProcess = null
     this.startTime = null
-    await new Promise(r => setTimeout(r, 400))
 
-    const stillRunning = await this.isRunning()
-    if (stillRunning) {
+    if (!isDead) {
       try {
         await execFileAsync('powershell.exe', [
           '-NoProfile',
@@ -197,15 +238,9 @@ export class SingBoxService {
       } catch {}
     }
 
-    const finalCheck = await this.isRunning()
-    if (!finalCheck) {
-      await NetworkService.getInstance().flushDns()
-      logService.addLog('Процесс sing-box успешно остановлен.', 'info')
-      return true
-    } else {
-      logService.addLog('Предупреждение: процесс sing-box не отвечает на сигналы остановки.', 'warn')
-      return false
-    }
+    await NetworkService.getInstance().flushDns()
+    logService.addLog('Процесс sing-box успешно остановлен.', 'info')
+    return true
   }
 
   public async toggle(enable?: boolean): Promise<{ success: boolean; isRunning: boolean; error?: string }> {

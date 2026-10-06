@@ -2,12 +2,14 @@ import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-channels'
 import { AuditService } from '../services/audit.service'
 import { NetworkService } from '../services/network.service'
+import { SpeedtestService } from '../services/speedtest.service'
 import { LogService } from '../services/log.service'
 import { isDevBuild } from '../utils/paths'
 
 export function registerSystemIpc(): void {
   const auditService = AuditService.getInstance()
   const networkService = NetworkService.getInstance()
+  const speedtestService = SpeedtestService.getInstance()
   const logService = LogService.getInstance()
 
   ipcMain.handle(IPC_CHANNELS.RUN_SYSTEM_AUDIT, async () => {
@@ -30,7 +32,13 @@ export function registerSystemIpc(): void {
     return isDevBuild()
   })
 
-  ipcMain.handle(IPC_CHANNELS.CLEAR_IDE_AND_DNS_CACHE, async () => {
-    return await networkService.clearIdeAndDnsCache()
+  ipcMain.handle(IPC_CHANNELS.RUN_SPEEDTEST, async () => {
+    return await speedtestService.runSpeedtest()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.CANCEL_SPEEDTEST, () => {
+    speedtestService.cancel()
+    return { success: true }
   })
 }
+

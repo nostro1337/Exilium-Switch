@@ -28,6 +28,12 @@ export class WindowManager {
     return this.mainWindow
   }
 
+  public broadcast(channel: string, ...args: any[]): void {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send(channel, ...args)
+    }
+  }
+
   public setQuitting(val: boolean): void {
     this.isQuitting = val
   }
@@ -83,7 +89,7 @@ export class WindowManager {
         nodeIntegration: false,
         contextIsolation: true,
         sandbox: false,
-        backgroundThrottling: false
+        backgroundThrottling: true
       }
     })
 

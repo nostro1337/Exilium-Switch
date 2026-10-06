@@ -5,6 +5,7 @@ import { registerSystemIpc } from './system.ipc'
 import { registerLogsIpc } from './logs.ipc'
 import { registerUpdaterIpc } from './updater.ipc'
 import { registerWindowIpc } from './window.ipc'
+import { registerAiIpcHandlers } from './ai.ipc'
 
 export function registerAllIpcHandlers(): void {
   registerVpnIpc()
@@ -14,4 +15,6 @@ export function registerAllIpcHandlers(): void {
   registerLogsIpc()
   registerUpdaterIpc()
   registerWindowIpc()
+  registerAiIpcHandlers()
 }
+

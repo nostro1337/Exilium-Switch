@@ -55,4 +55,13 @@ describe('StateMachine & Mutex Protection', () => {
     expect(p2).toBe('done')
     expect(executionCount).toBe(2)
   })
+
+  it('should support re-entrant lock execution within the same async context', async () => {
+    const res = await stateMachine.withLock(async () => {
+      return await stateMachine.withLock(async () => {
+        return 'nested-success'
+      })
+    })
+    expect(res).toBe('nested-success')
+  })
 })

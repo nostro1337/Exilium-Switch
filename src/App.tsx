@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { TitleBar } from './components/TitleBar'
 import { MasterSwitch } from './components/MasterSwitch'
-import { ResidentStatusCard } from './components/ResidentStatusCard'
+import { ResidentWidgets } from './components/ResidentWidgets'
 import { LogConsole } from './components/LogConsole'
 import { SettingsModal } from './components/SettingsModal'
 import { ProfileSelector } from './components/ProfileSelector'
@@ -20,7 +20,7 @@ export function App() {
   const [profilesOpen, setProfilesOpen] = useState(false)
   const [updateModalOpen, setUpdateModalOpen] = useState(false)
   const [diagnosisOpen, setDiagnosisOpen] = useState(false)
-  const [appVersion, setAppVersion] = useState('1.5.7')
+  const [appVersion, setAppVersion] = useState('1.5.8')
 
   const currentMode: AppMode = (status.appMode || settings.appMode || 'home') as AppMode
 
@@ -67,7 +67,7 @@ export function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col justify-between py-2 z-10 overflow-y-auto w-full max-w-lg mx-auto">
+      <main className="flex-1 flex flex-col justify-between py-2 z-10 overflow-y-auto w-full max-w-4xl px-2 sm:px-6 mx-auto transition-all duration-300">
         {/* Central Master Switch & Mode Selector */}
         <MasterSwitch
           isRunning={status.isRunning}
@@ -80,8 +80,8 @@ export function App() {
           onOpenProfiles={() => setProfilesOpen(true)}
         />
 
-        {/* Resident Mode Cards & Status */}
-        <ResidentStatusCard
+        {/* Resident Widgets Block */}
+        <ResidentWidgets
           isRunning={status.isRunning}
           currentZone={status.currentZone}
           fakeZone={settings.fakeZone}
@@ -110,7 +110,7 @@ export function App() {
         onClose={() => setProfilesOpen(false)}
       />
 
-      {/* System Auto-Diagnosis Modal */}
+      {/* System Mode Auto-Diagnosis Modal */}
       <SystemDiagnosisModal
         isOpen={diagnosisOpen}
         currentMode={currentMode}

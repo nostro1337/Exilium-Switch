@@ -110,6 +110,42 @@ describe('ZapretService Suite', () => {
     expect(cmd === null || typeof cmd === 'string').toBe(true)
   })
 
+  it('should detect and extract the exact .bat script with special characters from parent cmd', async () => {
+    const { execFileAsync } = await import('../../electron/utils/exec')
+    const fs = await import('node:fs')
+    const existsSpy = vi.spyOn(fs.default || fs, 'existsSync').mockImplementation((p: any) => {
+      return String(p).includes('general (ALT11).bat')
+    })
+
+    vi.mocked(execFileAsync).mockImplementationOnce(async () => {
+      return {
+        stdout: 'PARENT_CMD:"C:\\Windows\\system32\\cmd.exe" /c ""C:\\Tools\\zapret\\general (ALT11).bat""\nEXE_PATH:C:\\Tools\\zapret\\bin\\winws.exe\n'
+      } as any
+    })
+
+    const detected = await zapretService.detectRunningZapretCommand()
+    expect(detected).toBe('C:\\Tools\\zapret\\general (ALT11).bat')
+    existsSpy.mockRestore()
+  })
+
+  it('should detect and extract .cmd scripts from parent process', async () => {
+    const { execFileAsync } = await import('../../electron/utils/exec')
+    const fs = await import('node:fs')
+    const existsSpy = vi.spyOn(fs.default || fs, 'existsSync').mockImplementation((p: any) => {
+      return String(p).includes('1_russia_blacklist.cmd')
+    })
+
+    vi.mocked(execFileAsync).mockImplementationOnce(async () => {
+      return {
+        stdout: 'PARENT_CMD:"cmd.exe" /c "C:\\goodbyedpi\\1_russia_blacklist.cmd"\n'
+      } as any
+    })
+
+    const detected = await zapretService.detectRunningZapretCommand()
+    expect(detected).toBe('C:\\goodbyedpi\\1_russia_blacklist.cmd')
+    existsSpy.mockRestore()
+  })
+
   it('should execute syncEmergencyResume safely without errors', () => {
     expect(() => zapretService.syncEmergencyResume()).not.toThrow()
   })

@@ -17,9 +17,12 @@ import {
   Server,
   Lock,
   Layers,
-  X
+  X,
+  Sparkles
 } from 'lucide-react'
 import type { LogEntry, LogCategory } from '../../shared/types'
+import type { AiExplanationCard } from '../../shared/types/ai.types'
+import { AIExplanationModal } from './AIExplanationModal'
 
 interface LogConsoleProps {
   isOpen: boolean
@@ -37,7 +40,10 @@ export const LogConsole: React.FC<LogConsoleProps> = ({ isOpen, onClose }) => {
   const [autoScroll, setAutoScroll] = useState(true)
   const [isDev, setIsDev] = useState(false)
   const [copiedLineIndex, setCopiedLineIndex] = useState<number | null>(null)
+  const [selectedAiCard, setSelectedAiCard] = useState<AiExplanationCard | null>(null)
+  const [isExplaining, setIsExplaining] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+
 
   useEffect(() => {
     window.electronAPI?.getRecentLogs().then((recent) => {
@@ -66,6 +72,9 @@ export const LogConsole: React.FC<LogConsoleProps> = ({ isOpen, onClose }) => {
 
   // Tab counts
   const counts = useMemo(() => {
+    if (!isOpen) {
+      return { all: logs.length, system: 0, traffic: 0, security: 0, error: 0 }
+    }
     const res = { all: logs.length, system: 0, traffic: 0, security: 0, error: 0 }
     for (const l of logs) {
       const cat = l.category || 'system'
@@ -75,10 +84,11 @@ export const LogConsole: React.FC<LogConsoleProps> = ({ isOpen, onClose }) => {
       else res.system++
     }
     return res
-  }, [logs])
+  }, [logs, isOpen])
 
   // Filtered by tab and search text
   const filteredLogs = useMemo(() => {
+    if (!isOpen) return []
     let list = logs
     if (activeTab === 'system') {
       list = list.filter((l) => (l.category || 'system') === 'system')
@@ -95,7 +105,7 @@ export const LogConsole: React.FC<LogConsoleProps> = ({ isOpen, onClose }) => {
       list = list.filter((l) => l.text.toLowerCase().includes(q) || l.time.includes(q))
     }
     return list
-  }, [logs, activeTab, filter])
+  }, [logs, activeTab, filter, isOpen])
 
   const handleCopy = () => {
     const raw = filteredLogs.map((l) => `[${l.time}] [${(l.category || 'SYS').toUpperCase()}] [${l.type.toUpperCase()}] ${l.text}`).join('\n')
@@ -132,6 +142,28 @@ export const LogConsole: React.FC<LogConsoleProps> = ({ isOpen, onClose }) => {
     setLogs([])
   }
 
+  const handleExplain = async (e: React.MouseEvent, logText: string) => {
+    e.stopPropagation()
+    setIsExplaining(true)
+    try {
+      const card = await window.electronAPI?.explainLog?.(logText)
+      if (card) setSelectedAiCard(card)
+    } finally {
+      setIsExplaining(false)
+    }
+  }
+
+  // Escape key support to close log console
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
   const tabs: { id: TabType; label: string; icon: React.ReactNode; count: number }[] = [
@@ -143,15 +175,21 @@ export const LogConsole: React.FC<LogConsoleProps> = ({ isOpen, onClose }) => {
   ]
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 30, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 30, scale: 0.98 }}
-      transition={{ type: 'spring', stiffness: 450, damping: 30 }}
-      className="fixed inset-x-2.5 bottom-2.5 top-[44px] bg-[#0c0c0e] border border-white/15 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex flex-col z-40 overflow-hidden"
-    >
-      {/* Console Header Bar */}
-      <div className="h-11 px-3 border-b border-white/10 flex items-center justify-between bg-[#131317] shrink-0 select-none gap-3">
+    <AnimatePresence>
+      <div 
+        onClick={onClose}
+        className="fixed inset-0 top-[40px] z-40 bg-black/40 backdrop-blur-[2px] p-2.5 flex flex-col justify-end select-none cursor-default"
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 30, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 30, scale: 0.98 }}
+          transition={{ type: 'spring', stiffness: 450, damping: 30 }}
+          onClick={(e) => e.stopPropagation()}
+          className="w-full h-full bg-[#0c0c0e] border border-white/15 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex flex-col overflow-hidden"
+        >
+          {/* Console Header Bar */}
+          <div className="h-11 px-3 border-b border-white/10 flex items-center justify-between bg-[#131317] shrink-0 select-none gap-3">
         {/* Left: Title & Badge */}
         <div className="flex items-center gap-2 shrink-0">
           <Terminal className="w-3.5 h-3.5 text-zinc-300" strokeWidth={2} />
@@ -402,6 +440,18 @@ export const LogConsole: React.FC<LogConsoleProps> = ({ isOpen, onClose }) => {
                   {log.text}
                 </span>
 
+                {/* AI Explanation Button for errors/warns or entries with templateId */}
+                {(log.type === 'error' || log.type === 'warn' || log.templateId) && (
+                  <button
+                    onClick={(e) => handleExplain(e, log.text)}
+                    title="Объяснить данное событие с помощью ИИ"
+                    className="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 text-zinc-200 hover:text-white text-[9.5px] font-sans flex items-center gap-1 transition-all cursor-pointer shrink-0 border border-white/15"
+                  >
+                    <Sparkles className="w-2.5 h-2.5 text-zinc-300" />
+                    <span>ИИ Разбор</span>
+                  </button>
+                )}
+
                 {/* Click to copy feedback */}
                 {isJustCopied && (
                   <span className="text-[9px] font-sans px-1.5 py-0.2 rounded bg-white text-black font-semibold shrink-0">
@@ -413,6 +463,15 @@ export const LogConsole: React.FC<LogConsoleProps> = ({ isOpen, onClose }) => {
           })
         )}
       </div>
-    </motion.div>
+
+      {/* AI Explanation Modal */}
+      <AIExplanationModal
+        isOpen={!!selectedAiCard}
+        card={selectedAiCard}
+        onClose={() => setSelectedAiCard(null)}
+      />
+        </motion.div>
+      </div>
+    </AnimatePresence>
   )
 }

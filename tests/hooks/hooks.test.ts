@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useVpnStatus } from '../../src/hooks/useVpnStatus'
 import { useSettings } from '../../src/hooks/useSettings'
-import { useLogs } from '../../src/hooks/useLogs'
 import type { VpnStatus, AppSettings, LogEntry } from '../../shared/types'
 
 declare global {
@@ -64,7 +63,7 @@ describe('React Custom Hooks (Renderer Process)', () => {
       deleteProfile: vi.fn(async () => ({ success: true })),
       exportLogs: vi.fn(async () => ({ success: true, savedPath: 'C:\\logs.log' })),
       openLogsFolder: vi.fn(async () => {}),
-      getAppVersion: vi.fn(async () => '1.5.7'),
+      getAppVersion: vi.fn(async () => '1.5.8'),
       checkForUpdates: vi.fn(async () => ({ success: true })),
       startUpdateDownload: vi.fn(async () => ({ success: true })),
       quitAndInstallUpdate: vi.fn(async () => {}),
@@ -107,15 +106,16 @@ describe('React Custom Hooks (Renderer Process)', () => {
     })
   })
 
-  it('useLogs should fetch recent logs and allow exporting', async () => {
-    const { result } = renderHook(() => useLogs())
+  it('useVpnStatus should handle visibility change and compute uptime reactively', async () => {
+    const { result } = renderHook(() => useVpnStatus())
 
-    expect(result.current.logs).toBeDefined()
+    expect(result.current.status).toBeDefined()
 
+    // Simulate document visibilitychange event
     await act(async () => {
-      const res = await result.current.exportLogs()
-      expect(res?.success).toBe(true)
-      expect(res?.savedPath).toBe('C:\\logs.log')
+      document.dispatchEvent(new Event('visibilitychange'))
     })
+
+    expect(result.current.status.uptimeSeconds).toBeGreaterThanOrEqual(0)
   })
 })

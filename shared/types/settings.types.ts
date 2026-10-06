@@ -12,6 +12,9 @@ export interface AppSettings {
   coexistWithZapret?: boolean
   zapretScriptPath?: string
   wasZapretActive?: boolean
+  geminiApiKey?: string
+  aiEnabled?: boolean
+  aiTelemetryInterval?: number // in ms (e.g. 5000)
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -25,5 +28,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   activeProfileIdByMode: {},
   coexistWithZapret: true,
   zapretScriptPath: undefined,
-  wasZapretActive: false
+  wasZapretActive: false,
+  geminiApiKey: '',
+  aiEnabled: true,
+  aiTelemetryInterval: 5000
 }
+

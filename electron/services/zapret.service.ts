@@ -43,17 +43,52 @@ export class ZapretService {
   }
 
   /**
-   * Inspect running process tree to find the exact .bat file that launched winws.exe
+   * Helper to robustly extract script path from command line string
+   */
+  private extractScriptFromCommandLine(cmd: string, exePath: string | null): string | null {
+    // 1. Quoted absolute path: "C:\path with spaces\script.bat"
+    const quotedAbs = cmd.match(/["']([a-zA-Z]:\\[^"']+\.(?:bat|cmd))["']/i)
+    if (quotedAbs && fs.existsSync(quotedAbs[1])) return quotedAbs[1]
+
+    // 2. Unquoted absolute path: C:\path\script.bat
+    const unquotedAbs = cmd.match(/([a-zA-Z]:\\[^"'\s]+\.(?:bat|cmd))/i)
+    if (unquotedAbs && fs.existsSync(unquotedAbs[1])) return unquotedAbs[1]
+
+    // 3. Any quoted script: "something.bat"
+    const anyQuoted = cmd.match(/["']([^"']+\.(?:bat|cmd))["']/i)
+    if (anyQuoted) {
+      if (fs.existsSync(anyQuoted[1])) return anyQuoted[1]
+      if (exePath) {
+        const candidate = path.join(path.dirname(path.dirname(exePath)), anyQuoted[1])
+        if (fs.existsSync(candidate)) return candidate
+      }
+    }
+
+    // 4. Any script token
+    const tokenMatch = cmd.match(/([^\s"']+\.(?:bat|cmd))/i)
+    if (tokenMatch) {
+      if (fs.existsSync(tokenMatch[1])) return tokenMatch[1]
+      if (exePath) {
+        const candidate = path.join(path.dirname(path.dirname(exePath)), tokenMatch[1])
+        if (fs.existsSync(candidate)) return candidate
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Inspect running process tree to find the exact .bat or .cmd file that launched winws.exe or goodbyedpi.exe
    */
   public async detectRunningZapretCommand(): Promise<string | null> {
     try {
-      // Query winws process to get its ParentProcessId and ExecutablePath
+      // Query winws or goodbyedpi process to get its ParentProcessId and ExecutablePath
       const { stdout } = await execFileAsync('powershell.exe', [
         '-NoProfile',
         '-NonInteractive',
         '-Command',
         `
-        $p = Get-CimInstance Win32_Process -Filter "Name = 'winws.exe'" | Select-Object -First 1
+        $p = Get-CimInstance Win32_Process -Filter "Name = 'winws.exe' or Name = 'goodbyedpi.exe'" | Select-Object -First 1
         if ($p) {
           if ($p.ParentProcessId) {
             $parent = Get-CimInstance Win32_Process -Filter "ProcessId = $($p.ParentProcessId)"
@@ -69,26 +104,31 @@ export class ZapretService {
       ], { timeout: 3500 })
 
       if (stdout) {
+        let parentCmd: string | null = null
+        let exePath: string | null = null
+
         const lines = stdout.split('\n').map(l => l.trim())
         for (const line of lines) {
           if (line.startsWith('PARENT_CMD:')) {
-            const cmd = line.replace('PARENT_CMD:', '').trim()
-            // Match any .bat in the command line
-            const batMatch = cmd.match(/["']?([^"']+\.bat)["']?/i)
-            if (batMatch && batMatch[1] && fs.existsSync(batMatch[1])) {
-              return batMatch[1]
-            }
+            parentCmd = line.replace('PARENT_CMD:', '').trim()
           }
           if (line.startsWith('EXE_PATH:')) {
-            const exePath = line.replace('EXE_PATH:', '').trim()
-            if (exePath && fs.existsSync(exePath)) {
-              // Usually in zapret/bin/winws.exe -> check zapret/ directory
-              const binDir = path.dirname(exePath)
-              const rootDir = path.dirname(binDir)
-              const foundInRoot = this.scanDirForZapretBat(rootDir)
-              if (foundInRoot) return foundInRoot
-            }
+            exePath = line.replace('EXE_PATH:', '').trim()
           }
+        }
+
+        // 1. Try extracting exact script from parent process command line
+        if (parentCmd) {
+          const resolved = this.extractScriptFromCommandLine(parentCmd, exePath)
+          if (resolved) return resolved
+        }
+
+        // 2. Fallback: check root folder of the executable
+        if (exePath && fs.existsSync(exePath)) {
+          const binDir = path.dirname(exePath)
+          const rootDir = path.dirname(binDir)
+          const foundInRoot = this.scanDirForZapretBat(rootDir)
+          if (foundInRoot) return foundInRoot
         }
       }
     } catch {}
@@ -227,14 +267,29 @@ export class ZapretService {
     logService.addLog(`[Zapret] Обнаружен активный zapret ${scriptLabel}. Приостановка на время сессии VPN...`, 'info', 'zapret')
 
     try {
-      await execFileAsync('taskkill.exe', ['/F', '/IM', 'winws.exe', '/T'], { timeout: 4000 })
+      await execFileAsync('taskkill.exe', ['/F', '/IM', 'winws.exe', '/T'], { timeout: 2000 })
     } catch {}
 
     try {
-      await execFileAsync('taskkill.exe', ['/F', '/IM', 'goodbyedpi.exe', '/T'], { timeout: 4000 })
+      await execFileAsync('taskkill.exe', ['/F', '/IM', 'goodbyedpi.exe', '/T'], { timeout: 2000 })
     } catch {}
 
-    logService.addLog('✓ Zapret временно выключен. Трафик через VLESS направлен в чистом виде.', 'success', 'zapret')
+    try {
+      await execFileAsync('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `
+        Get-CimInstance Win32_Process -Filter "Name = 'cmd.exe'" | Where-Object {
+          $_.CommandLine -match 'zapret|winws|goodbyedpi|general.*\\.bat|discord.*\\.bat|youtube.*\\.bat'
+        } | ForEach-Object {
+          Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+        }
+        `
+      ], { timeout: 3000 })
+    } catch {}
+
+    logService.addLog('✓ Zapret временно выключен. Трафик через VLESS направлен в чистом виде.', 'success', 'security')
     return true
   }
 
@@ -259,27 +314,31 @@ export class ZapretService {
 
     const scriptPath = this.findZapretScript()
     if (!scriptPath || !fs.existsSync(scriptPath)) {
-      logService.addLog('Zapret: исполняемый .bat скрипт не найден для авто-перезапуска.', 'warn')
+      logService.addLog('Zapret: исполняемый .bat скрипт не найден для авто-перезапуска.', 'warn', undefined, 'system')
       return false
     }
 
-    logService.addLog(`Возобновление работы zapret (${path.basename(scriptPath)})...`, 'info')
+    logService.addLog(`Возобновление работы zapret (${path.basename(scriptPath)})...`, 'info', undefined, 'system')
 
     try {
       const scriptDir = path.dirname(scriptPath)
-      const child = spawn('cmd.exe', ['/c', 'start', '""', '/min', path.basename(scriptPath)], {
-        cwd: scriptDir,
+      const child = spawn('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `Start-Process -FilePath "cmd.exe" -ArgumentList "/c \`"${path.basename(scriptPath)}\`"" -WorkingDirectory "${scriptDir}" -WindowStyle Hidden`
+      ], {
         detached: true,
         stdio: 'ignore',
-        windowsHide: false
+        windowsHide: true
       })
       child.unref()
 
-      logService.addLog('✓ Zapret успешно перезапущен в фоновом режиме.', 'success')
+      logService.addLog('✓ Zapret успешно перезапущен в фоновом режиме.', 'success', undefined, 'system')
       return true
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      logService.addLog(`Не удалось перезапустить zapret: ${msg}`, 'warn')
+      logService.addLog(`Не удалось перезапустить zapret: ${msg}`, 'warn', undefined, 'system')
       return false
     }
   }

@@ -59,14 +59,17 @@ vi.mock('electron', () => {
     app: {
       getPath: vi.fn(() => 'C:\\MockAppData'),
       getAppPath: vi.fn(() => 'C:\\MockAppPath'),
-      getVersion: vi.fn(() => '1.5.7'),
+      getVersion: vi.fn(() => '1.5.8'),
       quit: vi.fn()
     }
   }
 })
 
+import { Menu } from 'electron'
 import { WindowManager } from '../../electron/core/window-manager'
 import { TrayManager } from '../../electron/core/tray-manager'
+import { SingBoxService } from '../../electron/services/singbox.service'
+import { NetworkService } from '../../electron/services/network.service'
 
 describe('WindowManager & TrayManager Full Lifecycle', () => {
   let windowManager: WindowManager
@@ -114,12 +117,26 @@ describe('WindowManager & TrayManager Full Lifecycle', () => {
     expect(windowManager.getWindow()).toBeNull()
   })
 
-  it('should create Tray and update context menu on VPN state change', () => {
+  it('should create Tray and update context menu on VPN state change', async () => {
+    vi.spyOn(SingBoxService.getInstance(), 'toggle').mockResolvedValue({ success: true, isRunning: false })
+    vi.spyOn(NetworkService.getInstance(), 'flushDns').mockResolvedValue()
+
     trayManager.createTray()
     expect(trayManager).toBeDefined()
 
     trayManager.updateTrayMenu(true)
     trayManager.updateTrayMenu(false)
+
+    // Execute context menu click handlers for comprehensive coverage
+    const buildFromTemplateMock = vi.mocked(Menu.buildFromTemplate)
+    const lastCall = buildFromTemplateMock.mock.calls[buildFromTemplateMock.mock.calls.length - 1]
+    if (lastCall && Array.isArray(lastCall[0])) {
+      for (const item of lastCall[0]) {
+        if (typeof (item as any).click === 'function') {
+          await (item as any).click()
+        }
+      }
+    }
 
     // Trigger tray double click
     if (eventListeners['tray:double-click']) {

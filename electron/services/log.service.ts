@@ -2,7 +2,10 @@ import { app, shell } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { getAppDataDir, isDevBuild } from '../utils/paths'
+import { AiNormalizerService } from './ai-normalizer.service'
+import { TelemetryService } from './telemetry.service'
 import type { LogEntry, LogType, LogCategory } from '../../shared/types'
+
 
 type LogListener = (entry: LogEntry) => void
 
@@ -12,6 +15,7 @@ export class LogService {
   private readonly maxBufferSize = 1500
   private listeners: Set<LogListener> = new Set()
   private sessionFilePath: string | null = null
+  private logStream: fs.WriteStream | null = null
 
   private constructor() {}
 
@@ -36,12 +40,22 @@ export class LogService {
       this.sessionFilePath = path.join(logsDir, `exilium-session-${timestamp}.log`)
 
       const isDev = isDevBuild()
-      const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.5.6'
+      const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.5.8'
       const sessionStart = new Date().toISOString()
       const modeBadge = isDev ? ' [DEV BUILD]' : ''
       const header = `=== EXILIUM SWITCH v${version}${modeBadge} SESSION STARTED [${sessionStart}] (by Nostro) ===\n`
 
       fs.writeFileSync(this.sessionFilePath, header, 'utf-8')
+      try {
+        if (this.logStream) {
+          this.logStream.end()
+        }
+        this.logStream = fs.createWriteStream(this.sessionFilePath, { flags: 'a', encoding: 'utf-8' })
+        this.logStream.on('error', (err) => {
+          console.error('Session log stream error:', err)
+          this.logStream = null
+        })
+      } catch {}
       return this.sessionFilePath
     } catch (err) {
       console.error('Failed to init live session log file:', err)
@@ -100,15 +114,17 @@ export class LogService {
       this.buffer.shift()
     }
 
-    // Live continuous append to session log file on disk
+    // Live continuous append to session log file on disk using buffered write stream
     try {
       if (!this.sessionFilePath) {
         this.initSessionFile()
       }
-      if (this.sessionFilePath) {
-        const catBadge = `[${category.toUpperCase().padEnd(8)}]`
-        const typeBadge = `[${type.toUpperCase().padEnd(4)}]`
-        const line = `[${time}] ${catBadge} ${typeBadge} ${text}\n`
+      const catBadge = `[${category.toUpperCase().padEnd(8)}]`
+      const typeBadge = `[${type.toUpperCase().padEnd(4)}]`
+      const line = `[${time}] ${catBadge} ${typeBadge} ${text}\n`
+      if (this.logStream) {
+        this.logStream.write(line)
+      } else if (this.sessionFilePath) {
         fs.appendFileSync(this.sessionFilePath, line, 'utf-8')
       }
     } catch {}
@@ -154,7 +170,21 @@ export class LogService {
 
     // Clean timestamp prefixes if sing-box already outputs them
     const cleanText = line.replace(/^\[.*?\]\s*/, '')
-    return this.addLog(cleanText || line, type, undefined, category)
+    
+    // Normalization & Template fingerprinting
+    let templateId: string | undefined
+    try {
+      const norm = AiNormalizerService.getInstance().normalize(line)
+      templateId = norm.templateId
+
+      if (type === 'error' || type === 'warn') {
+        if (lower.includes('reset by peer') || lower.includes('handshake failure') || lower.includes('broken pipe')) {
+          TelemetryService.getInstance().recordDpiAnomaly(norm.pattern)
+        }
+      }
+    } catch {}
+
+    return this.addLog(cleanText || line, type, templateId, category)
   }
 
   public exportLogs(): { success: boolean; savedPath?: string; error?: string } {

@@ -8,7 +8,9 @@ import type {
   VpnStatus,
   LogEntry,
   UpdateInfo,
-  UpdateProgress
+  UpdateProgress,
+  SpeedtestResult,
+  SpeedtestProgress
 } from '../shared/types'
 
 // Re-export for renderer backward compatibility
@@ -55,7 +57,22 @@ export interface IpcApi {
 
   // System & Environment
   isDevBuild: () => Promise<boolean>
-  clearIdeAndDnsCache: () => Promise<{ success: boolean; message: string }>
+
+  // AI Sentinel & Telemetry
+  explainLog: (logLine: string) => Promise<any>
+  getAiCard: (templateId: string) => Promise<any>
+  getAllAiCards: () => Promise<any[]>
+  clearAiCache: () => Promise<{ success: boolean }>
+  getAiCacheStats: () => Promise<any>
+  testAiKey: (apiKey: string) => Promise<any>
+  getLiveTelemetry: () => Promise<any>
+  onTelemetryChange: (callback: (telemetry: any) => void) => () => void
+  explainAudit: (audit: any) => Promise<any>
+
+  // Speedtest Engine
+  runSpeedtest: () => Promise<SpeedtestResult>
+  cancelSpeedtest: () => Promise<{ success: boolean }>
+  onSpeedtestProgress: (callback: (progress: SpeedtestProgress) => void) => () => void
 
   // Auto Updater
   getAppVersion: () => Promise<string>
@@ -73,7 +90,6 @@ export interface IpcApi {
 
 const api: IpcApi = {
   isDevBuild: () => ipcRenderer.invoke(IPC_CHANNELS.IS_DEV_BUILD),
-  clearIdeAndDnsCache: () => ipcRenderer.invoke(IPC_CHANNELS.CLEAR_IDE_AND_DNS_CACHE),
   getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.GET_STATUS),
   toggleVpn: (enable) => ipcRenderer.invoke(IPC_CHANNELS.TOGGLE_VPN, enable),
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS),
@@ -118,6 +134,30 @@ const api: IpcApi = {
   // Export Logs
   exportLogs: () => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_LOGS),
   openLogsFolder: () => ipcRenderer.invoke(IPC_CHANNELS.OPEN_LOGS_FOLDER),
+
+  // AI Sentinel & Telemetry
+  explainLog: (logLine: string) => ipcRenderer.invoke(IPC_CHANNELS.AI_EXPLAIN_LOG, logLine),
+  getAiCard: (templateId: string) => ipcRenderer.invoke(IPC_CHANNELS.AI_GET_CARD, templateId),
+  getAllAiCards: () => ipcRenderer.invoke(IPC_CHANNELS.AI_GET_ALL_CARDS),
+  clearAiCache: () => ipcRenderer.invoke(IPC_CHANNELS.AI_CLEAR_CACHE),
+  getAiCacheStats: () => ipcRenderer.invoke(IPC_CHANNELS.AI_GET_CACHE_STATS),
+  testAiKey: (apiKey: string) => ipcRenderer.invoke(IPC_CHANNELS.AI_TEST_CONNECTION, apiKey),
+  getLiveTelemetry: () => ipcRenderer.invoke(IPC_CHANNELS.AI_GET_TELEMETRY),
+  onTelemetryChange: (callback: (telemetry: any) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, telemetry: any) => callback(telemetry)
+    ipcRenderer.on(IPC_CHANNELS.AI_TELEMETRY_UPDATED, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.AI_TELEMETRY_UPDATED, handler)
+  },
+  explainAudit: (audit: any) => ipcRenderer.invoke(IPC_CHANNELS.AI_EXPLAIN_AUDIT, audit),
+
+  // Speedtest Engine
+  runSpeedtest: () => ipcRenderer.invoke(IPC_CHANNELS.RUN_SPEEDTEST),
+  cancelSpeedtest: () => ipcRenderer.invoke(IPC_CHANNELS.CANCEL_SPEEDTEST),
+  onSpeedtestProgress: (callback: (progress: SpeedtestProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: SpeedtestProgress) => callback(progress)
+    ipcRenderer.on(IPC_CHANNELS.SPEEDTEST_PROGRESS, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SPEEDTEST_PROGRESS, handler)
+  },
 
   // Auto Updater
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.GET_APP_VERSION),

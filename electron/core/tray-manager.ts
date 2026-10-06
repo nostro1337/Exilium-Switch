@@ -86,7 +86,7 @@ export class TrayManager {
     if (!this.tray) return
 
     const isDev = isDevBuild()
-    const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.5.1'
+    const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.5.8'
     const devLabel = isDev ? ' [DEV BUILD]' : ''
     const activeProfile = ProfileService.getInstance().getActiveProfile()
     const profileLabel = activeProfile ? `Профиль: ${activeProfile.name}` : 'Профиль: (не выбран)'
@@ -111,9 +111,9 @@ export class TrayManager {
         }
       },
       {
-        label: 'Сбросить кэш IDE и DNS',
+        label: 'Сбросить кэш DNS',
         click: async () => {
-          await NetworkService.getInstance().clearIdeAndDnsCache()
+          await NetworkService.getInstance().flushDns()
         }
       },
       { type: 'separator' },

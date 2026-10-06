@@ -27,18 +27,33 @@ if (Test-Path $updateYmlSource) {
 
 if ((Test-Path $rcedit) -and (Test-Path $exe)) {
     Write-Host "Patching PE metadata on $exe for version $appVersion..."
-    & $rcedit $exe `
-        --set-icon $icon `
-        --set-requested-execution-level "requireAdministrator" `
-        --set-version-string "FileDescription" "Exilium Switch" `
-        --set-version-string "ProductName" "Exilium Switch" `
-        --set-version-string "CompanyName" "Nostro" `
-        --set-version-string "LegalCopyright" "Copyright © 2026 Nostro" `
-        --set-version-string "OriginalFilename" "Exilium Switch.exe" `
-        --set-version-string "InternalName" "Exilium Switch" `
-        --set-product-version $appVersion `
-        --set-file-version $appVersion
-    Write-Host "rcedit completed with code: $LASTEXITCODE"
+    $maxAttempts = 5
+    $attempt = 1
+    $success = $false
+    while ($attempt -le $maxAttempts -and -not $success) {
+        & $rcedit $exe `
+            --set-icon $icon `
+            --set-requested-execution-level "requireAdministrator" `
+            --set-version-string "FileDescription" "Exilium Switch" `
+            --set-version-string "ProductName" "Exilium Switch" `
+            --set-version-string "CompanyName" "Nostro" `
+            --set-version-string "LegalCopyright" "Copyright © 2026 Nostro" `
+            --set-version-string "OriginalFilename" "Exilium Switch.exe" `
+            --set-version-string "InternalName" "Exilium Switch" `
+            --set-product-version $appVersion `
+            --set-file-version $appVersion
+        if ($LASTEXITCODE -eq 0) {
+            $success = $true
+            Write-Host "rcedit completed successfully on attempt $attempt."
+        } else {
+            Write-Host "rcedit attempt $attempt failed with code $LASTEXITCODE. Retrying in 500ms..."
+            Start-Sleep -Milliseconds 500
+            $attempt++
+        }
+    }
+    if (-not $success) {
+        Write-Error "rcedit failed after $maxAttempts attempts."
+    }
 } else {
     Write-Host "rcedit ($rcedit) or exe ($exe) not found!"
 }

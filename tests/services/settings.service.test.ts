@@ -26,4 +26,10 @@ describe('SettingsService Configuration Engine', () => {
     expect(updated.minimizeToTray).toBe(original.minimizeToTray)
     expect(updated.fakeZone).toBe(original.fakeZone)
   })
+
+  it('should serve settings from in-memory cache without repeated disk reads', () => {
+    const s1 = settingsService.loadSettings()
+    const s2 = settingsService.loadSettings()
+    expect(s1).toBe(s2) // Same cached object reference
+  })
 })

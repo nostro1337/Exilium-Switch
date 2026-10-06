@@ -198,24 +198,18 @@ export class ResidentShieldService {
     logService.addLog('Применение защиты от утечек DNS и изоляции IPv6...', 'info')
     const adapters = await networkService.getPhysicalAdapters()
 
-    for (const name of adapters) {
-      // 1. Disable IPv6 on physical adapter
-      try {
-        await execFileAsync('powershell.exe', [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          `Disable-NetAdapterBinding -Name '${name}' -ComponentID ms_tcpip6 -ErrorAction SilentlyContinue`
-        ])
-      } catch {}
+    if (adapters.length > 0) {
+      const scriptParts = adapters.map(name => {
+        const safeName = name.replace(/'/g, "''")
+        return `Disable-NetAdapterBinding -Name '${safeName}' -ComponentID ms_tcpip6 -ErrorAction SilentlyContinue; Set-DnsClientServerAddress -InterfaceAlias '${safeName}' -ServerAddresses ("8.8.8.8","1.1.1.1") -ErrorAction SilentlyContinue`
+      }).join('; ')
 
-      // 2. Set secure public fallback DNS on physical adapter so Windows never leaks to ISP but never hangs on loopback
       try {
         await execFileAsync('powershell.exe', [
           '-NoProfile',
           '-NonInteractive',
           '-Command',
-          `Set-DnsClientServerAddress -InterfaceAlias '${name}' -ServerAddresses ("8.8.8.8","1.1.1.1") -ErrorAction SilentlyContinue`
+          scriptParts
         ])
       } catch {}
     }
@@ -236,34 +230,18 @@ export class ResidentShieldService {
     logService.addLog('Восстановление стандартных настроек DNS и сетевых адаптеров...', 'info')
     const adapters = await networkService.getPhysicalAdapters()
 
-    for (const name of adapters) {
-      // 1. Reset physical adapter DNS back to DHCP / automatic ISP DNS
-      try {
-        await execFileAsync('powershell.exe', [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          `Set-DnsClientServerAddress -InterfaceAlias '${name}' -ResetServerAddresses -ErrorAction SilentlyContinue`
-        ])
-      } catch {}
+    if (adapters.length > 0) {
+      const scriptParts = adapters.map(name => {
+        const safeName = name.replace(/'/g, "''")
+        return `Set-DnsClientServerAddress -InterfaceAlias '${safeName}' -ResetServerAddresses -ErrorAction SilentlyContinue; Enable-NetAdapterBinding -Name '${safeName}' -ComponentID ms_tcpip6 -ErrorAction SilentlyContinue; Set-NetIPInterface -InterfaceAlias '${safeName}' -AddressFamily IPv4 -AutomaticMetric Enabled -ErrorAction SilentlyContinue; Set-NetIPInterface -InterfaceAlias '${safeName}' -AddressFamily IPv6 -AutomaticMetric Enabled -ErrorAction SilentlyContinue`
+      }).join('; ')
 
-      // 2. Re-enable IPv6 on physical adapter
       try {
         await execFileAsync('powershell.exe', [
           '-NoProfile',
           '-NonInteractive',
           '-Command',
-          `Enable-NetAdapterBinding -Name '${name}' -ComponentID ms_tcpip6 -ErrorAction SilentlyContinue`
-        ])
-      } catch {}
-
-      // 3. Restore Automatic Metric on physical adapter
-      try {
-        await execFileAsync('powershell.exe', [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          `Set-NetIPInterface -InterfaceAlias '${name}' -AddressFamily IPv4 -AutomaticMetric Enabled -ErrorAction SilentlyContinue; Set-NetIPInterface -InterfaceAlias '${name}' -AddressFamily IPv6 -AutomaticMetric Enabled -ErrorAction SilentlyContinue`
+          scriptParts
         ])
       } catch {}
     }

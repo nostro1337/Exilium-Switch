@@ -26,21 +26,63 @@ export function useVpnStatus() {
     }
   }, [])
 
-  // 1-second client-side uptime ticker when connected
+  // 1-second client-side uptime ticker when connected and window is visible
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
-    if (status.isRunning) {
-      interval = setInterval(() => {
+
+    const updateUptime = () => {
+      if (status.isRunning && status.startTime) {
+        const computed = Math.max(0, Math.floor((Date.now() - status.startTime) / 1000))
         setStatus((prev) => ({
           ...prev,
-          uptimeSeconds: prev.uptimeSeconds + 1
+          uptimeSeconds: computed
         }))
-      }, 1000)
+      }
     }
+
+    const startTicker = () => {
+      if (interval) clearInterval(interval)
+      if (status.isRunning && !document.hidden) {
+        const startTime = status.startTime
+        interval = setInterval(() => {
+          if (startTime) {
+            setStatus((prev) => ({
+              ...prev,
+              uptimeSeconds: Math.max(0, Math.floor((Date.now() - startTime) / 1000))
+            }))
+          } else {
+            setStatus((prev) => ({
+              ...prev,
+              uptimeSeconds: prev.uptimeSeconds + 1
+            }))
+          }
+        }, 1000)
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        updateUptime()
+        startTicker()
+      } else {
+        if (interval) {
+          clearInterval(interval)
+          interval = null
+        }
+      }
+    }
+
+    if (!document.hidden && status.isRunning) {
+      startTicker()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     return () => {
       if (interval) clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [status.isRunning])
+  }, [status.isRunning, status.startTime])
 
   const toggleVpn = useCallback(async () => {
     const res = await window.electronAPI?.toggleVpn()

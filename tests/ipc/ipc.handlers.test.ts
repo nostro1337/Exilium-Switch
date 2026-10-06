@@ -23,7 +23,7 @@ vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => 'C:\\MockAppData'),
     getAppPath: vi.fn(() => 'C:\\MockAppPath'),
-    getVersion: vi.fn(() => '1.5.7'),
+    getVersion: vi.fn(() => '1.5.8'),
     quit: vi.fn()
   },
   BrowserWindow: vi.fn(),
@@ -95,11 +95,6 @@ describe('IPC Handlers Execution Suite', () => {
     expect(handlers[IPC_CHANNELS.IS_DEV_BUILD]).toBeDefined()
     const isDev = await handlers[IPC_CHANNELS.IS_DEV_BUILD]()
     expect(typeof isDev).toBe('boolean')
-
-    expect(handlers[IPC_CHANNELS.CLEAR_IDE_AND_DNS_CACHE]).toBeDefined()
-    const clearRes = await handlers[IPC_CHANNELS.CLEAR_IDE_AND_DNS_CACHE]()
-    expect(clearRes).toBeDefined()
-    expect(clearRes.success).toBe(true)
   }, 20000)
 
   it('should execute Log handlers (GET_RECENT_LOGS, OPEN_LOGS_FOLDER)', async () => {
@@ -114,7 +109,7 @@ describe('IPC Handlers Execution Suite', () => {
   it('should execute Updater handlers (GET_APP_VERSION, CHECK_FOR_UPDATES, START_UPDATE_DOWNLOAD)', async () => {
     expect(handlers[IPC_CHANNELS.GET_APP_VERSION]).toBeDefined()
     const version = await handlers[IPC_CHANNELS.GET_APP_VERSION]()
-    expect(version).toBe('1.5.7')
+    expect(version).toBe('1.5.8')
 
     expect(handlers[IPC_CHANNELS.CHECK_FOR_UPDATES]).toBeDefined()
     const check = await handlers[IPC_CHANNELS.CHECK_FOR_UPDATES]()

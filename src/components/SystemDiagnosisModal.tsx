@@ -50,6 +50,17 @@ export const SystemDiagnosisModal: React.FC<SystemDiagnosisModalProps> = ({
     }
   }
 
+  // Escape key support to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   useEffect(() => {
     if (isOpen) {
       runScan()

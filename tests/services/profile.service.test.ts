@@ -68,4 +68,10 @@ describe('ProfileService Comprehensive Management', () => {
     expect(officeProfiles.length).toBe(0)
     expect(profileService.getActiveProfile('office')).toBeNull()
   })
+
+  it('should cache profiles list in memory across repeated calls', () => {
+    const list1 = profileService.getProfiles()
+    const list2 = profileService.getProfiles()
+    expect(list1).toEqual(list2)
+  })
 })

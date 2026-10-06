@@ -22,7 +22,6 @@ export const IPC_CHANNELS = {
   RUN_SYSTEM_AUDIT: 'run-system-audit',
   TEST_LATENCY: 'test-latency',
   IS_DEV_BUILD: 'is-dev-build',
-  CLEAR_IDE_AND_DNS_CACHE: 'system:clear-ide-and-dns-cache',
 
   // Logs
   SING_BOX_LOG: 'sing-box-log',
@@ -42,6 +41,23 @@ export const IPC_CHANNELS = {
   UPDATER_DOWNLOADED: 'updater:downloaded',
   UPDATER_ERROR: 'updater:error',
   OPEN_UPDATE_MODAL: 'open-update-modal',
+
+  // AI Sentinel & Telemetry (FROZEN - BETA)
+  AI_EXPLAIN_LOG: 'ai:explain-log',
+  AI_GET_CARD: 'ai:get-card',
+  AI_GET_ALL_CARDS: 'ai:get-all-cards',
+  AI_CLEAR_CACHE: 'ai:clear-cache',
+  AI_GET_CACHE_STATS: 'ai:get-cache-stats',
+  AI_TEST_CONNECTION: 'ai:test-connection',
+  AI_GET_TELEMETRY: 'ai:get-telemetry',
+  AI_TELEMETRY_UPDATED: 'ai:telemetry-updated',
+  AI_VERDICT_UPDATED: 'ai:verdict-updated',
+  AI_EXPLAIN_AUDIT: 'ai:explain-audit',
+
+  // Speedtest Engine
+  RUN_SPEEDTEST: 'speedtest:run',
+  CANCEL_SPEEDTEST: 'speedtest:cancel',
+  SPEEDTEST_PROGRESS: 'speedtest:progress',
 
   // Window
   WINDOW_MINIMIZE: 'window-minimize',

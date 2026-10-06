@@ -8,6 +8,7 @@ import { LogService } from './log.service'
 export class SettingsService {
   private static instance: SettingsService
   private cachedSettings: AppSettings | null = null
+  private lastMtime = 0
   private readonly configPath: string
 
   private constructor() {
@@ -21,9 +22,14 @@ export class SettingsService {
     return SettingsService.instance
   }
 
-  public loadSettings(): AppSettings {
+  public loadSettings(forceReload = false): AppSettings {
     try {
       if (fs.existsSync(this.configPath)) {
+        const stat = fs.statSync(this.configPath)
+        if (!forceReload && this.cachedSettings && stat.mtimeMs === this.lastMtime) {
+          return this.cachedSettings
+        }
+        this.lastMtime = stat.mtimeMs
         const raw = fs.readFileSync(this.configPath, 'utf-8')
         const parsed = JSON.parse(raw)
         // Automatic migration from Moscow default to user's real Tomsk timezone
@@ -52,6 +58,9 @@ export class SettingsService {
       }
       fs.writeFileSync(this.configPath, JSON.stringify(updated, null, 2), 'utf-8')
       this.cachedSettings = updated
+      try {
+        this.lastMtime = fs.statSync(this.configPath).mtimeMs
+      } catch {}
 
       // Sync autostart with OS
       if (partial.autoStart !== undefined) {
