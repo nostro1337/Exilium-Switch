@@ -1,9 +1,8 @@
 name: Build & Release Exilium Switch
 
+# NOTE: Автосборка по пушу тегов отключена по регламенту (долгие очереди Windows-раннеров на GitHub).
+# Релизы собираются и публикуются локально за ~40 сек: npm run release (или python scripts/publish_release.py)
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 permissions:

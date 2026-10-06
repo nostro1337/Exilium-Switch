@@ -15,6 +15,7 @@
     "package": "npm run build && electron-builder --win nsis portable --config.directories.output=release/Versions",
     "package:installer": "npm run build && electron-builder --win nsis --config.directories.output=release/Versions",
     "package:portable": "npm run build && electron-builder --win portable --config.directories.output=release/Versions",
+    "release": "python scripts/publish_release.py",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",

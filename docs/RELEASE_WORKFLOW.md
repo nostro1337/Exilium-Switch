@@ -51,57 +51,42 @@ npm run build
 6. В файлах тестов [`tests/`](file:///e:/Code/ExiliumSwitch/tests) актуализировать мок-версию.
 
 ### Шаг 4. Фиксация в Git (dev $\to$ main $\to$ tag)
-Сделать коммит в `dev`, смерджить в `main` и проставить тег с флагом `[skip ci]`, чтобы не создавать лишнюю очередь в облачных раннерах:
+Сделать коммит в `dev`, смерджить в `main` и проставить тег с флагом `[skip ci]`.
 ```powershell
 # 1. Коммит в dev
 git add .
-git commit -m "feat: release v1.5.5 - описание изменений [skip ci]"
+git commit -m "feat: release v1.5.8 - описание изменений [skip ci]"
 git push origin dev
 
 # 2. Мердж в main
 git checkout main
-git merge dev -m "release: v1.5.5 [skip ci]"
+git merge dev -m "release: v1.5.8 [skip ci]"
 git push origin main
 
 # 3. Создание и отправка тега
-git tag -a v1.5.5 -m "Release v1.5.5"
-git push origin v1.5.5
+git tag -a v1.5.8 -m "Release v1.5.8"
+git push origin v1.5.8
 
 # 4. Возврат в dev для дальнейшей работы
 git checkout dev
 ```
 
-### Шаг 5. Локальная сборка и прямая публикация на GitHub
-> **Важно:** Мы публикуем релиз **напрямую с локального ПК** через токен GitHub, сохраненный в Windows Credential Manager. Сборка и заливка занимают всего ~30–40 секунд!
+### Шаг 5. Локальная сборка и прямая публикация на GitHub (БЕЗ GitHub Actions)
+> **Критический регламент:** Облачные GitHub Actions для сборки релизов **отключены**. Бесплатные Windows-раннеры GitHub имеют огромные очереди ожидания (по 20–40 минут на старт задачи) и медленную компиляцию. 
+> Публикация релиза выполняется **строго напрямую с локального ПК** разработчика через [`scripts/publish_release.py`](file:///e:/Code/ExiliumSwitch/scripts/publish_release.py) (или команду `npm run release`). Вся сборка и загрузка артефактов занимает всего **~40 секунд**!
 
-Скрипт публикации:
-```python
-import subprocess
-import os
-import sys
-
-# 1. Извлечение токена GitHub из Windows Credential Manager
-p = subprocess.Popen(["git", "credential", "fill"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-out, _ = p.communicate(input="protocol=https\nhost=github.com\n\n")
-token = [l.split("=", 1)[1] for l in out.splitlines() if l.startswith("password=")][0]
-
-env = os.environ.copy()
-env["GH_TOKEN"] = token
-
-# 2. Сборка Vite и Electron
-print("Building frontend and electron main...")
-res_build = subprocess.run(["npm.cmd", "run", "build"], cwd=r"e:\Code\ExiliumSwitch", env=env)
-if res_build.returncode != 0:
-    sys.exit(res_build.returncode)
-
-# 3. Упаковка NSIS, Portable, генерация blockmap и публикация в GitHub Releases
-print("Packaging and publishing to GitHub via electron-builder...")
-res_pub = subprocess.run(["npx.cmd", "electron-builder", "--win", "--publish", "always", "--config.directories.output=release/Versions"], cwd=r"e:\Code\ExiliumSwitch", env=env)
-if res_pub.returncode != 0:
-    sys.exit(res_pub.returncode)
-
-print("SUCCESS: RELEASE PUBLISHED TO GITHUB!")
+Запуск релиза одной командой:
+```powershell
+npm run release
 ```
+*(Или напрямую: `python scripts/publish_release.py`)*
+
+Что делает скрипт [`publish_release.py`](file:///e:/Code/ExiliumSwitch/scripts/publish_release.py):
+1. **Автоматически извлекает токен GitHub** из Windows Credential Manager (`git credential fill`).
+2. **Компилирует TypeScript и Vite** (`npm run build`).
+3. **Собирает NSIS-установщик и Portable бинарник**, генерирует `.blockmap` и `latest.yml`.
+4. **Загружает артефакты в GitHub Releases** через `electron-builder --win --publish always`.
+5. **Обновляет заголовок и подробный чейнджлог** релиза на GitHub на русском языке через GitHub API.
 
 ### Шаг 6. Верификация артефактов на GitHub Releases
 Убедиться, что в релизе на GitHub присутствуют все 4 обязательных файла:
