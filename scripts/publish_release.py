@@ -5,6 +5,9 @@ import json
 import urllib.request
 import urllib.error
 
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
 # 1. Чтение версии из package.json
 pkg_path = os.path.join(os.path.dirname(__file__), "..", "package.json")
 with open(pkg_path, "r", encoding="utf-8") as f:
