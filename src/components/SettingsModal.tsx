@@ -53,7 +53,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const [saving, setSaving] = useState(false)
   const [savedSuccess, setSavedSuccess] = useState(false)
-  const [version, setVersion] = useState('1.5.8')
+  const [version, setVersion] = useState('1.5.9')
   const [isDev, setIsDev] = useState(false)
 
   // Escape key support to close modal

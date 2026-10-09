@@ -40,7 +40,7 @@ export class LogService {
       this.sessionFilePath = path.join(logsDir, `exilium-session-${timestamp}.log`)
 
       const isDev = isDevBuild()
-      const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.5.8'
+      const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.5.9'
       const sessionStart = new Date().toISOString()
       const modeBadge = isDev ? ' [DEV BUILD]' : ''
       const header = `=== EXILIUM SWITCH v${version}${modeBadge} SESSION STARTED [${sessionStart}] (by Nostro) ===\n`

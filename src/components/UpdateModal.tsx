@@ -37,9 +37,35 @@ interface ChangelogItem {
 
 const CHANGELOG_DATA: ChangelogItem[] = [
   {
+    version: '1.5.9',
+    date: '09.10.2026',
+    isCurrent: true,
+    highlights: [
+      {
+        icon: 'shield',
+        title: 'Автомиграция ядра и устранение DNS Blackhole',
+        desc: 'Автоматическое обновление существующих профилей: удаление паразитного IPv6 (fd00::1), исключающее потерю DNS-запросов Windows при работе Resident Shield, и переход на нативный стек Wintun (system).'
+      },
+      {
+        icon: 'zap',
+        title: 'Синхронизация Reality с 3X-UI 3.9.0',
+        desc: 'Актуализация маскировочного SNI и Target хостера (vdsina.ru, short_id d2206270cdf067), принудительное включение uTLS chrome и потока xtls-rprx-vision для защиты от сканеров ТСПУ.'
+      },
+      {
+        icon: 'sparkles',
+        title: 'Стабилизация замера пинга (RTT)',
+        desc: 'Интеллектуальная пауза конвергенции маршрутов Wintun при старте туннеля — устранены ложные красные предупреждения о таймауте пинга.'
+      },
+      {
+        icon: 'check',
+        title: 'Мгновенная миграция при импорте',
+        desc: 'Все импортируемые JSON-конфигурации и VLESS-ссылки валидируются и приводятся к современному стандарту sing-box 1.12+ до записи на диск.'
+      }
+    ]
+  },
+  {
     version: '1.5.8',
     date: '06.10.2026',
-    isCurrent: true,
     highlights: [
       {
         icon: 'zap',

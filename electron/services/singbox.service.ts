@@ -171,6 +171,7 @@ export class SingBoxService {
             const alive = await this.isRunning()
             if (alive) {
               this.startTime = Date.now()
+              NetworkService.getInstance().notifyTunnelStarted()
               logService.addLog(`sing-box активен (PID: ${child.pid}, Профиль: "${activeProfile.name}").`, 'success')
               await NetworkService.getInstance().flushDns()
               resolve(true)
@@ -226,6 +227,7 @@ export class SingBoxService {
 
     this.childProcess = null
     this.startTime = null
+    NetworkService.getInstance().notifyTunnelStopped()
 
     if (!isDead) {
       try {

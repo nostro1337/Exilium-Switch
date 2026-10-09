@@ -10,6 +10,7 @@ export class NetworkService {
   private physicalAdaptersCache: string[] | null = null
   private lastAdapterScan = 0
   private readonly adapterCacheTtl = 60000 // 1 minute
+  private lastTunnelStartTime = 0
 
   private constructor() {}
 
@@ -18,6 +19,18 @@ export class NetworkService {
       NetworkService.instance = new NetworkService()
     }
     return NetworkService.instance
+  }
+
+  public notifyTunnelStarted(timestamp = Date.now()): void {
+    this.lastTunnelStartTime = timestamp
+  }
+
+  public notifyTunnelStopped(): void {
+    this.lastTunnelStartTime = 0
+  }
+
+  public getLastTunnelStartTime(): number {
+    return this.lastTunnelStartTime
   }
 
   public async getPhysicalAdapters(forceRefresh = false): Promise<string[]> {
@@ -111,6 +124,17 @@ export class NetworkService {
   }
 
   public async testLatency(targetHost = DEFAULT_PING_TARGET, targetPort = 443): Promise<{ latencyMs: number | null; error?: string }> {
+    // 0. Ensure a brief stabilization delay (500-600ms) before the first latency test ping after tunnel start
+    if (this.lastTunnelStartTime > 0) {
+      const startTime = this.lastTunnelStartTime
+      this.lastTunnelStartTime = 0
+      const elapsed = Date.now() - startTime
+      const convergenceDelay = 550
+      if (elapsed < convergenceDelay) {
+        await new Promise(resolve => setTimeout(resolve, convergenceDelay - elapsed))
+      }
+    }
+
     // 1. Try multi-sample physical ICMP ping via Windows ping.exe (2 packets, 1000ms timeout)
     try {
       const { stdout } = await execFileAsync('ping.exe', ['-n', '2', '-w', '1000', targetHost], { timeout: 2500 })

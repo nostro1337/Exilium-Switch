@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getProfilesDir } from '../utils/paths'
-import { convertVlessToSingBoxConfig } from '../utils/vless-parser'
+import { convertVlessToSingBoxConfig, patchConfigWithTorrentRouting, migrateLegacyConfig } from '../utils/vless-parser'
 import { SettingsService } from './settings.service'
 import { LogService } from './log.service'
 import type { AppMode, ConfigProfile } from '../../shared/types'
@@ -117,6 +117,14 @@ export class ProfileService {
       const name = meta[id]?.name || id.replace(/[-_]/g, ' ')
       const mode: AppMode = meta[id]?.mode || (id.toLowerCase().includes('aviabasa') ? 'office' : 'home')
 
+      try {
+        const raw = fs.readFileSync(fullPath, 'utf-8')
+        const json = JSON.parse(raw)
+        if (migrateLegacyConfig(json)) {
+          fs.writeFileSync(fullPath, JSON.stringify(json, null, 2), 'utf-8')
+        }
+      } catch {}
+
       let createdAt = Date.now()
       try {
         createdAt = fs.statSync(fullPath).birthtimeMs
@@ -210,11 +218,15 @@ export class ProfileService {
   }
 
   public importJsonContent(rawContent: string, originalName: string, targetMode?: AppMode): { success: boolean; profile?: ConfigProfile; error?: string } {
+    let json: Record<string, unknown>
     try {
-      JSON.parse(rawContent)
+      json = JSON.parse(rawContent)
     } catch {
       return { success: false, error: 'Файл не является валидным JSON' }
     }
+
+    migrateLegacyConfig(json)
+    const contentToSave = JSON.stringify(json, null, 2)
 
     const settingsService = SettingsService.getInstance()
     const settings = settingsService.loadSettings()
@@ -223,7 +235,7 @@ export class ProfileService {
     const profilesDir = getProfilesDir()
     const destPath = path.join(profilesDir, `${safeId}.json`)
 
-    fs.writeFileSync(destPath, rawContent, 'utf-8')
+    fs.writeFileSync(destPath, contentToSave, 'utf-8')
 
     this.saveMeta(safeId, { name: originalName, mode })
     const updatedMap = { ...(settings.activeProfileIdByMode || {}), [mode]: safeId }
@@ -260,6 +272,7 @@ export class ProfileService {
       const parsed = convertVlessToSingBoxConfig(link, mode)
       config = parsed.config
       name = parsed.name
+      migrateLegacyConfig(config)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       return { success: false, error: message }

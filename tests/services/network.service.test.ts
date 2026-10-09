@@ -71,4 +71,42 @@ Enabled        Connected      Dedicated        wintun
   it('should execute flushDns safely without uncaught errors', async () => {
     await expect(networkService.flushDns()).resolves.not.toThrow()
   })
+
+  it('should record tunnel start time via notifyTunnelStarted', () => {
+    const before = Date.now()
+    networkService.notifyTunnelStarted()
+    const recorded = networkService.getLastTunnelStartTime()
+    expect(recorded).toBeGreaterThanOrEqual(before)
+    expect(recorded).toBeLessThanOrEqual(Date.now())
+  })
+
+  it('should wait for route convergence stabilization on first ping after tunnel start and reset timer', async () => {
+    vi.spyOn(execModule, 'execFileAsync').mockResolvedValue({
+      stdout: 'Reply from 89.124.94.246: bytes=32 time=45ms TTL=54',
+      stderr: ''
+    })
+
+    // Simulate tunnel started 500ms ago (50ms remaining out of 550ms delay)
+    networkService.notifyTunnelStarted(Date.now() - 500)
+    const t0 = Date.now()
+    const res = await networkService.testLatency('89.124.94.246')
+    const elapsed = Date.now() - t0
+
+    expect(res.latencyMs).toBe(45)
+    expect(elapsed).toBeGreaterThanOrEqual(20)
+    expect(networkService.getLastTunnelStartTime()).toBe(0)
+
+    // Immediate second ping should have no added convergence delay
+    const t1 = Date.now()
+    await networkService.testLatency('89.124.94.246')
+    const secondElapsed = Date.now() - t1
+    expect(secondElapsed).toBeLessThan(100)
+  })
+
+  it('should reset tunnel start time via notifyTunnelStopped', () => {
+    networkService.notifyTunnelStarted()
+    expect(networkService.getLastTunnelStartTime()).toBeGreaterThan(0)
+    networkService.notifyTunnelStopped()
+    expect(networkService.getLastTunnelStartTime()).toBe(0)
+  })
 })
