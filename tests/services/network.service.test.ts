@@ -36,6 +36,20 @@ describe('NetworkService Engine', () => {
     expect(res.latencyMs).toBe(110)
   })
 
+  it('should parse latency from Russian Windows OEM CP866 mojibake ping output via TTL anchor', async () => {
+    vi.spyOn(execModule, 'execFileAsync').mockResolvedValue({
+      stdout: [
+        '⢥  89.124.94.246: ᫮ =32 ६=94 TTL=58',
+        '⢥  89.124.94.246: ᫮ =32 ६=96 TTL=58',
+        '    쭮 = 94ᥪ, ᨬ쭮 = 96 ᥪ, । = 95 ᥪ'
+      ].join('\r\n'),
+      stderr: ''
+    })
+
+    const res = await networkService.testLatency('89.124.94.246')
+    expect(res.latencyMs).toBe(95)
+  })
+
   it('should handle latency measurement without throwing uncaught exceptions', async () => {
     // Test to a non-existent or localhost port to check error handling
     const res = await networkService.testLatency('127.0.0.1', 65534)
@@ -56,6 +70,7 @@ Admin State    State          Type             Interface Name
 -------------------------------------------------------------------------
 Enabled        Disconnected   Dedicated        Подключение по локальной сети
 Enabled        Connected      Dedicated        Ethernet
+Enabled        Connected      Dedicated        Tailscale
 Enabled        Connected      Dedicated        singbox-tun0
 Enabled        Connected      Dedicated        wintun
 `

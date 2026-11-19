@@ -38,7 +38,7 @@ export class NetworkService {
       return this.physicalAdaptersCache
     }
 
-    const virtualPattern = /sing-?box|wintun|tap|virtual|hyper-v|vethernet|loopback/i
+    const virtualPattern = /sing-?box|wintun|tap|virtual|hyper-v|vethernet|loopback|tailscale|wireguard|zerotier|outline|hotspotshield|radmin|hamachi/i
 
     // 1. Ultra-fast detection via netsh interface show interface (~15ms)
     try {
@@ -98,7 +98,7 @@ export class NetworkService {
         '-NoProfile',
         '-NonInteractive',
         '-Command',
-        '(Get-NetAdapter | Where-Object Status -eq Up | Where-Object InterfaceDescription -notmatch "sing-box|Wintun|TAP|Virtual|Hyper-V").Name'
+        '(Get-NetAdapter | Where-Object Status -eq Up | Where-Object InterfaceDescription -notmatch "sing-box|Wintun|TAP|Virtual|Hyper-V|Tailscale|WireGuard|ZeroTier|Outline|HotspotShield").Name'
       ])
       const fallbackNames = fallback.stdout.trim().split(/\r?\n/).map(s => s.trim()).filter(Boolean)
       const result = fallbackNames.length > 0 ? fallbackNames : ['Ethernet', 'Ethernet 2', 'Wi-Fi']
@@ -156,9 +156,9 @@ export class NetworkService {
       }
     }
 
-    // 1. Try multi-sample physical ICMP ping via Windows ping.exe (2 packets, 1000ms timeout)
+    // 1. Try multi-sample physical ICMP ping via Windows ping.exe (2 packets, 1200ms timeout)
     try {
-      const { stdout } = await execFileAsync('ping.exe', ['-n', '2', '-w', '1000', host], { timeout: 2500 })
+      const { stdout } = await execFileAsync('ping.exe', ['-n', '2', '-w', '1200', host], { timeout: 3000 })
       const minValidMs = isLoopback ? 1 : 3
 
       // Look for Windows summary line first (Average = XXms / Среднее = XX мсек)
@@ -170,15 +170,28 @@ export class NetworkService {
         }
       }
 
-      // If summary is missing, parse individual reply lines
+      // If summary is missing, parse individual reply lines (EN/RU UTF-8)
       const matches = Array.from(stdout.matchAll(/(?:time|время)[=<](\d+)\s*(?:ms|мс)?/gi))
       if (matches.length > 0) {
         const values = matches
           .map(m => parseInt(m[1], 10))
           .filter(v => !isNaN(v) && v >= minValidMs)
         if (values.length > 0) {
-          const minPing = Math.min(...values)
-          return { latencyMs: minPing }
+          const avg = Math.round(values.reduce((acc, v) => acc + v, 0) / values.length)
+          return { latencyMs: avg }
+        }
+      }
+
+      // Locale/codepage-agnostic fallback for Windows OEM CP866 mojibake:
+      // e.g. "Ответ от ...: число байт=32 время=94мс TTL=58" decoded as UTF-8 still preserves "=94... TTL=58"
+      const ttlAnchoredMatches = Array.from(stdout.matchAll(/[=<](\d+)[^\r\n=\s]*\s+TTL=\d+/gi))
+      if (ttlAnchoredMatches.length > 0) {
+        const values = ttlAnchoredMatches
+          .map(m => parseInt(m[1], 10))
+          .filter(v => !isNaN(v) && v >= minValidMs)
+        if (values.length > 0) {
+          const avg = Math.round(values.reduce((acc, v) => acc + v, 0) / values.length)
+          return { latencyMs: avg }
         }
       }
     } catch {}

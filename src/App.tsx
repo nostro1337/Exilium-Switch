@@ -20,7 +20,7 @@ export function App() {
   const [profilesOpen, setProfilesOpen] = useState(false)
   const [updateModalOpen, setUpdateModalOpen] = useState(false)
   const [diagnosisOpen, setDiagnosisOpen] = useState(false)
-  const [appVersion, setAppVersion] = useState('1.6.0')
+  const [appVersion, setAppVersion] = useState('1.6.1')
 
   const currentMode: AppMode = (status.appMode || settings.appMode || 'home') as AppMode
 

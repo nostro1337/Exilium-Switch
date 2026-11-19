@@ -37,9 +37,30 @@ interface ChangelogItem {
 
 const CHANGELOG_DATA: ChangelogItem[] = [
   {
-    version: '1.6.0',
+    version: '1.6.1',
     date: '19.11.2026',
     isCurrent: true,
+    highlights: [
+      {
+        icon: 'shield',
+        title: 'Исправление TCP VLESS Reality на провайдерах РФ (uTLS Firefox)',
+        desc: 'Автоматическая миграция проблемного uTLS-отпечатка chrome → firefox для всех Reality-профилей (включая сторонние серверы), устраняющая зависание и таймаут TLS-рукопожатия под ТСПУ.'
+      },
+      {
+        icon: 'zap',
+        title: 'Честный пинг на русской Windows (фикс кодировки CP866)',
+        desc: 'Добавлен независимый от системной локали и кодировки CP866 парсер ответов ping.exe по маркеру TTL — вместо ложного «3 ms» от перехвата Wintun теперь всегда отображается реальная задержка.'
+      },
+      {
+        icon: 'sparkles',
+        title: 'Защита маршрута Telegram и изоляция Tailscale',
+        desc: 'Подсети Telegram (149.154.160.0/20, 91.108.x.x и др.) подняты выше правил direct, а виртуальные адаптеры Tailscale/WireGuard/Outline исключены из перенастройки DNS в Resident Shield.'
+      }
+    ]
+  },
+  {
+    version: '1.6.0',
+    date: '19.11.2026',
     highlights: [
       {
         icon: 'zap',

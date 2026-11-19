@@ -1,6 +1,19 @@
 import type { AppMode } from '../../shared/types'
 
 export const DEFAULT_REALITY_SNI = 'github.com'
+export const DEFAULT_UTLS_FINGERPRINT = 'firefox'
+
+export const TELEGRAM_IP_CIDRS = [
+  "149.154.160.0/20",
+  "91.108.4.0/22",
+  "91.108.8.0/22",
+  "91.108.12.0/22",
+  "91.108.16.0/22",
+  "91.108.20.0/22",
+  "91.108.56.0/22",
+  "91.105.192.0/23",
+  "185.76.151.0/24"
+]
 
 export const RUSSIAN_AND_CIS_DOMAINS = [
   // Top-Level Domains
@@ -195,7 +208,9 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
     const sid = params.get('sid') || ''
     const rawSni = params.get('sni')
     const sni = rawSni || server
-    const fp = params.get('fp') || 'chrome'
+    const rawFp = (params.get('fp') || '').trim().toLowerCase()
+    // Normalize chrome -> firefox: sing-box 1.14 uTLS chrome ClientHello is silently dropped by RU TSPU on foreign VPS TCP:443
+    const fp = (!rawFp || rawFp === 'chrome') ? DEFAULT_UTLS_FINGERPRINT : rawFp
     const wsPath = params.get('path') || '/office-ws'
 
     if (security !== 'reality' && security !== 'tls' && security !== 'none') {
@@ -312,6 +327,7 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
   routeRules.push(
     { ip_is_private: true, outbound: "direct" },
     { ip_cidr: ["224.0.0.0/4"], outbound: "direct" },
+    { ip_cidr: TELEGRAM_IP_CIDRS, outbound: "proxy-out" },
     { domain_suffix: TORRENT_TRACKER_DOMAINS, outbound: "proxy-out" },
     { process_name: TORRENT_PROCESSES, outbound: "direct" },
     { domain_suffix: RUSSIAN_AND_CIS_DOMAINS, outbound: "direct" },
@@ -320,10 +336,6 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
     {
       network: "udp",
       port_range: DISCORD_VOICE_UDP_PORTS,
-      outbound: "proxy-out"
-    },
-    {
-      ip_cidr: ["149.154.160.0/20", "91.108.4.0/22", "91.108.8.0/22", "91.108.56.0/22"],
       outbound: "proxy-out"
     }
   )
@@ -587,6 +599,26 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
           outbound.connect_timeout = '5s'
           changed = true
         }
+
+        // Migrate uTLS fingerprint on ALL VLESS+Reality outbounds:
+        // sing-box 1.14 chrome ClientHello is dropped by RU TSPU on foreign VPS TCP:443 -> switch to firefox
+        const anyTls = outbound.tls as Record<string, unknown> | undefined
+        if (anyTls && typeof anyTls === 'object' && anyTls.reality && typeof anyTls.reality === 'object') {
+          if (!anyTls.utls || typeof anyTls.utls !== 'object') {
+            anyTls.utls = { enabled: true, fingerprint: DEFAULT_UTLS_FINGERPRINT }
+            changed = true
+          } else {
+            const utls = anyTls.utls as Record<string, unknown>
+            if (utls.enabled !== true) {
+              utls.enabled = true
+              changed = true
+            }
+            if (!utls.fingerprint || utls.fingerprint === 'chrome') {
+              utls.fingerprint = DEFAULT_UTLS_FINGERPRINT
+              changed = true
+            }
+          }
+        }
       }
       if (outbound.type === 'vless' && outbound.server === '89.124.94.246') {
         const tls = outbound.tls as Record<string, unknown> | undefined
@@ -605,20 +637,6 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
             if (reality.public_key !== 'rtkFblJnh5rBZmpjlFaD7ju8TQHt8gl1LtK6pqwcEAw') {
               reality.public_key = 'rtkFblJnh5rBZmpjlFaD7ju8TQHt8gl1LtK6pqwcEAw'
               changed = true
-            }
-            if (!tls.utls || typeof tls.utls !== 'object') {
-              tls.utls = { enabled: true, fingerprint: 'chrome' }
-              changed = true
-            } else {
-              const utls = tls.utls as Record<string, unknown>
-              if (utls.enabled !== true) {
-                utls.enabled = true
-                changed = true
-              }
-              if (!utls.fingerprint) {
-                utls.fingerprint = 'chrome'
-                changed = true
-              }
             }
             if (outbound.flow !== 'xtls-rprx-vision') {
               outbound.flow = 'xtls-rprx-vision'
@@ -729,6 +747,34 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
             finalInsertIdx++
           }
           rules.splice(finalInsertIdx, 0, { protocol: 'quic', action: 'reject' })
+          changed = true
+        }
+      }
+
+      // Ensure Telegram DC CIDRs are always proxied BEFORE direct RU/torrent rules
+      const tgIdx = rules.findIndex(r =>
+        r && Array.isArray(r.ip_cidr) && (r.ip_cidr as string[]).includes('149.154.160.0/20') && r.outbound === 'proxy-out'
+      )
+      const ruDirectIdx = rules.findIndex(r =>
+        r && Array.isArray(r.domain_suffix) && (r.domain_suffix as string[]).includes('ru') && r.outbound === 'direct'
+      )
+      const multiIdx = rules.findIndex(r =>
+        r && Array.isArray(r.ip_cidr) && (r.ip_cidr as string[]).includes('224.0.0.0/4')
+      )
+      if (tgIdx === -1) {
+        const insertIdx = multiIdx !== -1 ? multiIdx + 1 : (ruDirectIdx !== -1 ? ruDirectIdx : rules.length)
+        rules.splice(insertIdx, 0, { ip_cidr: TELEGRAM_IP_CIDRS, outbound: 'proxy-out' })
+        changed = true
+      } else {
+        const tgRule = rules[tgIdx]
+        if (!arraysEqual(tgRule.ip_cidr as unknown[], TELEGRAM_IP_CIDRS)) {
+          tgRule.ip_cidr = TELEGRAM_IP_CIDRS
+          changed = true
+        }
+        if (ruDirectIdx !== -1 && tgIdx > ruDirectIdx) {
+          const [removed] = rules.splice(tgIdx, 1)
+          const targetIdx = multiIdx !== -1 ? multiIdx + 1 : ruDirectIdx
+          rules.splice(targetIdx, 0, removed)
           changed = true
         }
       }

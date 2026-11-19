@@ -47,13 +47,23 @@ describe('VLESS Parser & Config Generator Engine', () => {
     expect(reality.public_key).toBe('7bF_79R5O5jZ6y9mX3q1_ABCDEF1234567890abcdef')
     expect(reality.short_id).toBe('a1b2c3d4')
 
-    // Verify Real-IP Split DNS (no FakeIP on Windows) and QUIC rejected for TCP VLESS
+    // chrome uTLS fingerprint is automatically normalized to firefox for RU TSPU stability
+    const utls = tls.utls as Record<string, unknown>
+    expect(utls.enabled).toBe(true)
+    expect(utls.fingerprint).toBe('firefox')
+
+    // Verify Real-IP Split DNS (no FakeIP on Windows), QUIC rejected for TCP VLESS, and Telegram CIDRs placed before RU direct
     const dns = config.dns as Record<string, unknown>
     const dnsServers = dns.servers as Record<string, unknown>[]
     expect(dnsServers.some(s => s.type === 'fakeip')).toBe(false)
     const route = config.route as Record<string, unknown>
     const routeRules = route.rules as Record<string, unknown>[]
     expect(routeRules.some(r => r.protocol === 'quic' && r.action === 'reject')).toBe(true)
+    const tgIdx = routeRules.findIndex(r => Array.isArray(r.ip_cidr) && (r.ip_cidr as string[]).includes('149.154.160.0/20') && r.outbound === 'proxy-out')
+    const ruIdx = routeRules.findIndex(r => Array.isArray(r.domain_suffix) && (r.domain_suffix as string[]).includes('ru') && r.outbound === 'direct')
+    expect(tgIdx).toBeGreaterThan(-1)
+    expect(ruIdx).toBeGreaterThan(-1)
+    expect(tgIdx).toBeLessThan(ruIdx)
   })
 
   it('should parse hysteria2:// link cleanly without QUIC reject and validate with sing-box', () => {
@@ -449,8 +459,49 @@ describe('VLESS Parser & Config Generator Engine', () => {
     expect(changed).toBe(true)
     expect((oldVdsinaConfig.log as any).level).toBe('warn')
     expect((oldVdsinaConfig.outbounds as any[])[0].tls.server_name).toBe('github.com')
+    expect((oldVdsinaConfig.outbounds as any[])[0].tls.utls.fingerprint).toBe('firefox')
     expect((oldVdsinaConfig.outbounds as any[])[0].tcp_fast_open).toBe(false)
     expect(migrateLegacyConfig(oldVdsinaConfig)).toBe(false)
+  })
+
+  it('should migrate chrome uTLS fingerprint to firefox on third-party Reality servers and move Telegram CIDRs above RU direct', () => {
+    const thirdPartyConfig: Record<string, unknown> = {
+      outbounds: [
+        {
+          type: 'vless',
+          tag: 'proxy-out',
+          server: '89.110.66.232',
+          server_port: 443,
+          uuid: '0fa3a1c5-c533-4296-9ed0-2392e24cd1d6',
+          flow: 'xtls-rprx-vision',
+          tls: {
+            enabled: true,
+            server_name: 'swdist.apple.com',
+            utls: { enabled: true, fingerprint: 'chrome' },
+            reality: { enabled: true, public_key: 'abc', short_id: '1234' }
+          }
+        }
+      ],
+      route: {
+        rules: [
+          { ip_is_private: true, outbound: 'direct' },
+          { ip_cidr: ['224.0.0.0/4'], outbound: 'direct' },
+          { domain_suffix: ['ru'], outbound: 'direct' },
+          { ip_cidr: ['149.154.160.0/20', '91.108.4.0/22'], outbound: 'proxy-out' }
+        ]
+      }
+    }
+
+    expect(migrateLegacyConfig(thirdPartyConfig)).toBe(true)
+    expect((thirdPartyConfig.outbounds as any[])[0].tls.utls.fingerprint).toBe('firefox')
+    expect((thirdPartyConfig.outbounds as any[])[0].tls.server_name).toBe('swdist.apple.com')
+
+    const rules = (thirdPartyConfig.route as any).rules as Record<string, unknown>[]
+    const tgIdx = rules.findIndex(r => Array.isArray(r.ip_cidr) && (r.ip_cidr as string[]).includes('149.154.160.0/20') && r.outbound === 'proxy-out')
+    const ruIdx = rules.findIndex(r => Array.isArray(r.domain_suffix) && (r.domain_suffix as string[]).includes('ru') && r.outbound === 'direct')
+    expect(tgIdx).toBeGreaterThan(-1)
+    expect(tgIdx).toBeLessThan(ruIdx)
+    expect(migrateLegacyConfig(thirdPartyConfig)).toBe(false)
   })
 
   it('should align outdated or corrupted Reality public_key for 89.124.94.246', () => {

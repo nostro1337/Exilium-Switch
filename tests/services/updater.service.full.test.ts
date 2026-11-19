@@ -4,7 +4,7 @@ const updaterListeners: Record<string, Function> = {}
 
 vi.mock('electron', () => ({
   app: {
-    getVersion: vi.fn(() => '1.6.0'),
+    getVersion: vi.fn(() => '1.6.1'),
     isPackaged: true
   },
   BrowserWindow: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock('electron-updater', () => {
       }),
       checkForUpdates: vi.fn(async () => ({
         updateInfo: {
-          version: '1.6.0',
+          version: '1.6.1',
           releaseDate: '2026-08-28',
           releaseNotes: 'Новая версия Exilium Switch'
         }
@@ -60,8 +60,8 @@ describe('UpdaterService Complete Lifecycle & Events', () => {
 
     // update-available
     if (updaterListeners['update-available']) {
-      updaterListeners['update-available']({ version: '1.6.0' })
-      expect(mockSend).toHaveBeenCalledWith('updater:available', expect.objectContaining({ version: '1.6.0' }))
+      updaterListeners['update-available']({ version: '1.6.1' })
+      expect(mockSend).toHaveBeenCalledWith('updater:available', expect.objectContaining({ version: '1.6.1' }))
     }
 
     // update-not-available
@@ -84,8 +84,8 @@ describe('UpdaterService Complete Lifecycle & Events', () => {
 
     // update-downloaded
     if (updaterListeners['update-downloaded']) {
-      updaterListeners['update-downloaded']({ version: '1.6.0' })
-      expect(mockSend).toHaveBeenCalledWith('updater:downloaded', expect.objectContaining({ version: '1.6.0' }))
+      updaterListeners['update-downloaded']({ version: '1.6.1' })
+      expect(mockSend).toHaveBeenCalledWith('updater:downloaded', expect.objectContaining({ version: '1.6.1' }))
     }
   })
 
