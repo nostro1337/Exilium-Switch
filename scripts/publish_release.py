@@ -12,7 +12,7 @@ sys.stderr.reconfigure(encoding='utf-8')
 pkg_path = os.path.join(os.path.dirname(__file__), "..", "package.json")
 with open(pkg_path, "r", encoding="utf-8") as f:
     pkg_data = json.load(f)
-version = pkg_data.get("version", "1.6.1")
+version = pkg_data.get("version", "1.6.2")
 
 print(f"=== Подготовка релиза Exilium Switch v{version} ===")
 
@@ -52,25 +52,20 @@ if res_pub.returncode != 0:
 
 # 5. Обновление метаданных релиза (Title и Changelog) через GitHub API
 print("\n[3/3] Обновление описания и чейнджлога релиза на GitHub...")
-release_body = f"""# 🛠️ Exilium Switch v{version} — фикс TCP VLESS Reality (uTLS Firefox), честный пинг CP866 и защита Telegram/Tailscale
+release_body = f"""# 🛠️ Exilium Switch v{version} — исправление потокового видео (HTTP/3 → HTTP/2) и удалённый DNS в режиме Офис
 
-## 🔥 Что исправлено в хотфиксе v{version}:
+## 🔥 Что исправлено в v{version}:
 
-### 1. 🛡️ Восстановление всех TCP VLESS + Reality профилей (uTLS `chrome` → `firefox`)
-- **Устранена причина таймаутов VLESS на ПК:** Отпечаток `utls.fingerprint: "chrome"` в `sing-box 1.14` отбрасывается ТСПУ на зарубежных VPS:443, из-за чего падали все TCP-профили.
-- **Автоматическая миграция:** Все новые и существующие профили VLESS + Reality (включая сторонние серверы) автоматически переводятся на стабильный отпечаток `firefox`.
+### 1. 🎬 Устранение зависаний потокового видео и `ERR_QUIC_PROTOCOL_ERROR` на Hysteria 2
+- **Блокировка внутреннего QUIC/HTTP3 для всех профилей (включая Hysteria 2):** Исключён конфликт QUIC-внутри-QUIC, из-за которого видео-CDN возвращали `net::ERR_QUIC_PROTOCOL_ERROR` либо проседали в 5 раз по скорости.
+- Браузеры автоматически работают через стабильный `HTTP/2` поверх туннеля, при этом сам внешний UDP-транспорт Hysteria 2, голос Discord/Telegram и игровой UDP работают без ограничений.
 
-### 2. 🎯 Честный пинг на русской Windows (фикс ложных `3 ms`)
-- **Исправлен парсинг `ping.exe` в OEM-кодировке `CP866`:** Добавлено извлечение RTT с привязкой к маркеру `TTL=`, не зависящее от кодировки консоли Windows.
-- Приложение и Speedtest теперь показывают реальный пинг до сервера вместо ложных `3 ms` от локального Wintun TCP-перехвата.
+### 2. 🌐 Исключение DNS-утечек и неверных CDN в режиме «Офис»
+- **Обновлён fallback DNS (`dns.final: "dns-remote"`):** В режиме «Офис» корпоративный DNS (`aviabasa.local`) и российские домены (`RUSSIAN_AND_CIS_DOMAINS`) по-прежнему идут напрямую, а все зарубежные сайты и видео-CDN теперь резолвятся через европейский узел (`dns-remote`).
 
-### 3. 🧭 Приоритетная маршрутизация Telegram и чистота адаптеров
-- **Подсети Telegram DC** (`149.154.160.0/20`, `91.108.x.x`, `91.105.192.0/23`, `185.76.151.0/24`) перенесены выше правил `direct`, чтобы трафик Telegram никогда не уходил мимо туннеля.
-- **Исключение виртуальных VPN-адаптеров:** `Tailscale`, `WireGuard`, `ZeroTier`, `Outline`, `HotspotShield` исключены из списка физических адаптеров `Resident Shield` и больше не затрагиваются при применении DNS/IPv6-защиты.
-
-### 4. 🧪 Quality Gate
+### 3. 🧪 Quality Gate
 - **100%** автоматизированных тестов Vitest пройдены успешно.
-- Покрытие кода: **>86% Lines**, **>89% Funcs**, **0 ошибок** TypeScript и Vite.
+- Покрытие кода: **>86% Lines**, **>90% Funcs**, **0 ошибок** TypeScript и Vite.
 
 ---
 **Разработчик:** Nostro | **Репозиторий:** [Exilium-Switch](https://github.com/nostro1337/Exilium-Switch)

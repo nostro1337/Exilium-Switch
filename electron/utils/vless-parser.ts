@@ -295,10 +295,10 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
     { port: 53, action: "hijack-dns" }
   ]
 
-  // Prevent QUIC-over-TCP congestion meltdown when using TCP-based tunnels (VLESS)
-  if (!isHysteria2) {
-    routeRules.push({ protocol: "quic", action: "reject" })
-  }
+  // Block inner browser QUIC/HTTP3 across ALL protocols (both TCP VLESS and UDP Hysteria 2)
+  // so video CDNs (phncdn, xvideos-cdn, cloudflare) stream over fast HTTP/2 without ERR_QUIC_PROTOCOL_ERROR
+  // or QUIC-in-QUIC overhead, while keeping Hysteria 2 outer transport and voice/game UDP untouched.
+  routeRules.push({ protocol: "quic", action: "reject" })
 
   routeRules.push(routeDirectRule)
 
@@ -345,7 +345,7 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
     dns: {
       servers: dnsServers,
       rules: dnsRules,
-      final: isOffice ? "dns-direct" : "dns-remote",
+      final: "dns-remote",
       strategy: "ipv4_only",
       cache_capacity: 10000,
       reverse_mapping: true
@@ -514,8 +514,8 @@ export function patchConfigWithTorrentRouting(config: Record<string, unknown>): 
  * 3. In tun inbounds: removes IPv6 addresses, keeping IPv4 only and native "system" stack.
  * 4. In VLESS outbounds: disables TCP Fast Open (prevents RU ISP/CGNAT drops), sets TCP keepalive & connect_timeout.
  * 5. In Reality outbound for 89.124.94.246: migrates deprecated Russian target SNIs (vdsina.ru/hostkey.ru) to github.com and ensures valid keys/uTLS/flow.
- * 6. For non-office profiles: enables FakeIP (198.18.0.0/15) for instant 0.1ms local DNS resolution.
- * 7. For TCP proxy configs: adds QUIC reject rule to prevent QUIC-over-TCP jitter spikes and narrows Discord UDP range.
+ * 6. Synchronizes Real-IP Split DNS (removing legacy FakeIP, migrating office dns.final from dns-direct to dns-remote).
+ * 7. Adds inner QUIC reject rule across all proxy configs (eliminating QUIC-in-QUIC / HTTP/3 stalls) and narrows Discord UDP range.
  *
  * Returns true if changes were made to config, false if already up-to-date (idempotent).
  */
@@ -566,12 +566,10 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
   }
 
   // 3. Outbounds optimization & Reality alignment
-  let hasHysteria2 = false
   if (Array.isArray(config.outbounds)) {
     for (const outbound of config.outbounds as Record<string, unknown>[]) {
       if (!outbound || typeof outbound !== 'object') continue
       if (outbound.type === 'hysteria2') {
-        hasHysteria2 = true
         if (!outbound.domain_resolver) {
           outbound.domain_resolver = 'dns-direct'
           changed = true
@@ -651,6 +649,10 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
   // 4. DNS rules synchronization: Real-IP Split DNS (no FakeIP on Windows), reverse_mapping, STREAMING_AND_AI_DOMAINS, DISCORD_DOMAINS
   if (config.dns && typeof config.dns === 'object') {
     const dns = config.dns as Record<string, unknown>
+    if (dns.final === 'dns-direct') {
+      dns.final = 'dns-remote'
+      changed = true
+    }
     if (dns.reverse_mapping !== true) {
       dns.reverse_mapping = true
       changed = true
@@ -721,7 +723,7 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
     }
   }
 
-  // 5. Route rules synchronization: QUIC reject (TCP proxies), STREAMING_AND_AI_DOMAINS, DISCORD_DOMAINS, narrow UDP voice ports
+  // 5. Route rules synchronization: inner QUIC reject (all proxies), STREAMING_AND_AI_DOMAINS, DISCORD_DOMAINS, narrow UDP voice ports
   if (config.route && typeof config.route === 'object') {
     const route = config.route as Record<string, unknown>
     if (!route.default_domain_resolver) {
@@ -735,20 +737,18 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
     if (Array.isArray(route.rules)) {
       const rules = route.rules as Record<string, unknown>[]
 
-      // Reject QUIC over TCP tunnels to eliminate UDP-over-TCP jitter spikes
-      if (!hasHysteria2) {
-        const hasQuicReject = rules.some(r => r && r.protocol === 'quic' && r.action === 'reject')
-        if (!hasQuicReject) {
-          const hijackIdx = rules.findIndex(r => r && r.action === 'hijack-dns')
-          const insertIdx = hijackIdx !== -1 ? hijackIdx + 1 : 0
-          // Place after the last hijack-dns rule if multiple exist
-          let finalInsertIdx = insertIdx
-          while (finalInsertIdx < rules.length && rules[finalInsertIdx]?.action === 'hijack-dns') {
-            finalInsertIdx++
-          }
-          rules.splice(finalInsertIdx, 0, { protocol: 'quic', action: 'reject' })
-          changed = true
+      // Reject inner QUIC/HTTP3 across all proxy types to prevent QUIC-in-QUIC / UDP-over-TCP failures
+      const hasQuicReject = rules.some(r => r && r.protocol === 'quic' && r.action === 'reject')
+      if (!hasQuicReject) {
+        const hijackIdx = rules.findIndex(r => r && r.action === 'hijack-dns')
+        const insertIdx = hijackIdx !== -1 ? hijackIdx + 1 : 0
+        // Place after the last hijack-dns rule if multiple exist
+        let finalInsertIdx = insertIdx
+        while (finalInsertIdx < rules.length && rules[finalInsertIdx]?.action === 'hijack-dns') {
+          finalInsertIdx++
         }
+        rules.splice(finalInsertIdx, 0, { protocol: 'quic', action: 'reject' })
+        changed = true
       }
 
       // Ensure Telegram DC CIDRs are always proxied BEFORE direct RU/torrent rules
@@ -761,9 +761,13 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
       const multiIdx = rules.findIndex(r =>
         r && Array.isArray(r.ip_cidr) && (r.ip_cidr as string[]).includes('224.0.0.0/4')
       )
+      const safeTargetIdx =
+        (multiIdx !== -1 && (ruDirectIdx === -1 || multiIdx < ruDirectIdx))
+          ? multiIdx + 1
+          : (ruDirectIdx !== -1 ? ruDirectIdx : rules.length)
+
       if (tgIdx === -1) {
-        const insertIdx = multiIdx !== -1 ? multiIdx + 1 : (ruDirectIdx !== -1 ? ruDirectIdx : rules.length)
-        rules.splice(insertIdx, 0, { ip_cidr: TELEGRAM_IP_CIDRS, outbound: 'proxy-out' })
+        rules.splice(safeTargetIdx, 0, { ip_cidr: TELEGRAM_IP_CIDRS, outbound: 'proxy-out' })
         changed = true
       } else {
         const tgRule = rules[tgIdx]
@@ -773,7 +777,7 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
         }
         if (ruDirectIdx !== -1 && tgIdx > ruDirectIdx) {
           const [removed] = rules.splice(tgIdx, 1)
-          const targetIdx = multiIdx !== -1 ? multiIdx + 1 : ruDirectIdx
+          const targetIdx = (multiIdx !== -1 && multiIdx < ruDirectIdx) ? multiIdx + 1 : ruDirectIdx
           rules.splice(targetIdx, 0, removed)
           changed = true
         }

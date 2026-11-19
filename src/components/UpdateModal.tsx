@@ -37,9 +37,25 @@ interface ChangelogItem {
 
 const CHANGELOG_DATA: ChangelogItem[] = [
   {
-    version: '1.6.1',
+    version: '1.6.2',
     date: '19.11.2026',
     isCurrent: true,
+    highlights: [
+      {
+        icon: 'zap',
+        title: 'Исправление загрузки видео и HTTP/3 на Hysteria 2',
+        desc: 'Блокировка внутреннего браузерного QUIC/HTTP3 (QUIC-in-QUIC) для всех профилей включая Hysteria 2: браузер переключается на стабильный HTTP/2 без ошибок ERR_QUIC_PROTOCOL_ERROR и с 5-кратным ростом скорости потокового видео.'
+      },
+      {
+        icon: 'shield',
+        title: 'Корректный удалённый DNS в режиме Офис (dns-remote)',
+        desc: 'Все не-российские домены и зарубежные видео-CDN в режиме Офис теперь резолвятся через удалённый европейский DNS (dns-remote) вместо прямого dns-direct, при полном сохранении корпоративного aviabasa.local и сайтов РФ.'
+      }
+    ]
+  },
+  {
+    version: '1.6.1',
+    date: '19.11.2026',
     highlights: [
       {
         icon: 'shield',

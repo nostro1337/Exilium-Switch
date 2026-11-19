@@ -15,7 +15,7 @@ vi.mock('electron-updater', () => {
       on: vi.fn(),
       checkForUpdates: vi.fn(async () => ({
         updateInfo: {
-          version: '1.6.1',
+          version: '1.6.2',
           releaseDate: '2026-08-28',
           releaseNotes: 'Update notes'
         }
@@ -28,7 +28,7 @@ vi.mock('electron-updater', () => {
 
 vi.mock('electron', () => ({
   app: {
-    getVersion: vi.fn(() => '1.6.1'),
+    getVersion: vi.fn(() => '1.6.2'),
     isPackaged: true
   },
   BrowserWindow: vi.fn(),
@@ -51,7 +51,7 @@ describe('UpdaterService Deep Testing Suite', () => {
     const res = await updaterService.checkForUpdates()
     expect(res.success).toBe(true)
     expect(res.updateAvailable).toBe(true)
-    expect(res.version).toBe('1.6.1')
+    expect(res.version).toBe('1.6.2')
   })
 
   it('should download update successfully', async () => {

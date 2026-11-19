@@ -66,7 +66,7 @@ describe('VLESS Parser & Config Generator Engine', () => {
     expect(tgIdx).toBeLessThan(ruIdx)
   })
 
-  it('should parse hysteria2:// link cleanly without QUIC reject and validate with sing-box', () => {
+  it('should parse hysteria2:// link cleanly with inner QUIC reject and validate with sing-box', () => {
     const hy2Link = 'hysteria2://SecretPass123@89.124.94.246:443?sni=89.124.94.246&obfs=salamander&obfs-password=ObfsKey99&upmbps=100&downmbps=250#NL-Hysteria2'
     const { config, name } = convertVlessToSingBoxConfig(hy2Link, 'home')
 
@@ -83,7 +83,7 @@ describe('VLESS Parser & Config Generator Engine', () => {
 
     const route = config.route as Record<string, unknown>
     const routeRules = route.rules as Record<string, unknown>[]
-    expect(routeRules.some(r => r.protocol === 'quic' && r.action === 'reject')).toBe(false)
+    expect(routeRules.some(r => r.protocol === 'quic' && r.action === 'reject')).toBe(true)
 
     const exePath = path.resolve(process.cwd(), 'sing-box/sing-box.exe')
     if (fs.existsSync(exePath)) {
@@ -105,11 +105,14 @@ describe('VLESS Parser & Config Generator Engine', () => {
     expect(name).toBe('NL-Amsterdam-Fast_OFFICE')
 
     const dns = config.dns as Record<string, unknown>
-    expect(dns.final).toBe('dns-direct')
+    expect(dns.final).toBe('dns-remote')
 
     const dnsServers = dns.servers as Record<string, unknown>[]
     expect(dnsServers.some(s => s.tag === 'dns-corp-primary' && s.server === '192.168.12.223')).toBe(true)
     expect(dnsServers.some(s => s.tag === 'dns-corp-backup' && s.server === '192.168.12.222')).toBe(true)
+    const dnsRules = dns.rules as Record<string, unknown>[]
+    expect(dnsRules.some(r => Array.isArray(r.domain_suffix) && r.domain_suffix.includes('aviabasa.local') && r.server === 'dns-corp-primary')).toBe(true)
+    expect(dnsRules.some(r => Array.isArray(r.domain_suffix) && r.domain_suffix.includes('ru') && r.server === 'dns-direct')).toBe(true)
 
     const route = config.route as Record<string, unknown>
     const rules = route.rules as Record<string, unknown>[]
@@ -502,6 +505,90 @@ describe('VLESS Parser & Config Generator Engine', () => {
     expect(tgIdx).toBeGreaterThan(-1)
     expect(tgIdx).toBeLessThan(ruIdx)
     expect(migrateLegacyConfig(thirdPartyConfig)).toBe(false)
+  })
+
+  it('should migrate legacy hysteria2 configs to reject inner QUIC, upgrade office dns.final to dns-remote, and pass sing-box check', () => {
+    const legacyHy2Config: Record<string, unknown> = {
+      log: { level: 'warn', timestamp: true },
+      dns: {
+        servers: [
+          { tag: 'dns-direct', type: 'udp', server: '77.88.8.8', server_port: 53, detour: 'direct' },
+          { tag: 'dns-remote', type: 'udp', server: '8.8.8.8', server_port: 53, detour: 'proxy-out' }
+        ],
+        rules: [
+          { domain_suffix: ['ru'], server: 'dns-direct' }
+        ],
+        final: 'dns-remote',
+        strategy: 'ipv4_only'
+      },
+      inbounds: [
+        { type: 'tun', tag: 'tun-in', interface_name: 'singbox-tun0', address: ['172.19.0.1/30'], stack: 'system' }
+      ],
+      outbounds: [
+        {
+          type: 'hysteria2',
+          tag: 'proxy-out',
+          server: '89.124.94.246',
+          server_port: 443,
+          up_mbps: 100,
+          down_mbps: 250,
+          password: 'secret',
+          tls: { enabled: true, server_name: '89.124.94.246' }
+        },
+        { type: 'direct', tag: 'direct' }
+      ],
+      route: {
+        rules: [
+          { action: 'sniff' },
+          { protocol: 'dns', action: 'hijack-dns' },
+          { port: 53, action: 'hijack-dns' },
+          { ip_cidr: ['89.124.94.246/32'], outbound: 'direct' },
+          { domain_suffix: ['ru'], outbound: 'direct' }
+        ],
+        final: 'proxy-out'
+      }
+    }
+
+    expect(migrateLegacyConfig(legacyHy2Config)).toBe(true)
+    const hy2Rules = (legacyHy2Config.route as any).rules as Record<string, unknown>[]
+    expect(hy2Rules.some(r => r.protocol === 'quic' && r.action === 'reject')).toBe(true)
+    expect(migrateLegacyConfig(legacyHy2Config)).toBe(false)
+
+    const exePath = path.resolve(process.cwd(), 'sing-box/sing-box.exe')
+    if (fs.existsSync(exePath)) {
+      const tmpPath = path.join(os.tmpdir(), `hy2-migrated-${Date.now()}.json`)
+      try {
+        fs.writeFileSync(tmpPath, JSON.stringify(legacyHy2Config, null, 2), 'utf-8')
+        expect(() => {
+          execFileSync(exePath, ['check', '-c', tmpPath], { stdio: 'pipe' })
+        }).not.toThrow()
+      } finally {
+        if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath)
+      }
+    }
+
+    const legacyOfficeConfig: Record<string, unknown> = {
+      dns: {
+        servers: [
+          { tag: 'dns-corp-primary', type: 'udp', server: '192.168.12.223', server_port: 53, detour: 'direct' },
+          { tag: 'dns-direct', type: 'udp', server: '77.88.8.8', server_port: 53, detour: 'direct' },
+          { tag: 'dns-remote', type: 'udp', server: '8.8.8.8', server_port: 53, detour: 'proxy-out' }
+        ],
+        rules: [
+          { domain_suffix: ['aviabasa.local', 'local'], server: 'dns-corp-primary' },
+          { domain_suffix: ['ru'], server: 'dns-direct' }
+        ],
+        final: 'dns-direct'
+      },
+      route: { rules: [{ domain_suffix: ['ru'], outbound: 'direct' }] }
+    }
+
+    expect(migrateLegacyConfig(legacyOfficeConfig)).toBe(true)
+    expect((legacyOfficeConfig.dns as any).final).toBe('dns-remote')
+    expect((legacyOfficeConfig.dns as any).rules.some((r: any) =>
+      Array.isArray(r.domain_suffix) && r.domain_suffix.includes('aviabasa.local') && r.server === 'dns-corp-primary'
+    )).toBe(true)
+    expect(migrateLegacyConfig(legacyOfficeConfig)).toBe(false)
   })
 
   it('should align outdated or corrupted Reality public_key for 89.124.94.246', () => {
