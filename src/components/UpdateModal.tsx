@@ -37,9 +37,35 @@ interface ChangelogItem {
 
 const CHANGELOG_DATA: ChangelogItem[] = [
   {
+    version: '1.6.0',
+    date: '19.11.2026',
+    isCurrent: true,
+    highlights: [
+      {
+        icon: 'zap',
+        title: 'Ядро sing-box v1.14.4 и поддержка Hysteria 2 (QUIC)',
+        desc: 'Обновление ядра с беты 1.14.0-beta.15 до стабильного sing-box 1.14.4 с приоритетом встроенного бинарника, нативный импорт hysteria2:// и hy2:// ссылок с молниеносным откликом.'
+      },
+      {
+        icon: 'shield',
+        title: 'Ликвидация скачков пинга и QUIC-over-TCP',
+        desc: 'Отклонение QUIC (UDP 443) на TCP-профилях для стабильного HTTP/2 без лагов в YouTube/браузере, отключение проблемного TFO, настройка TCP Keepalive (30s/10s) и сужение UDP-правил Discord (50000–50100).'
+      },
+      {
+        icon: 'sparkles',
+        title: 'Европейский Reality SNI (github.com) и Real-IP Split DNS',
+        desc: 'Автомиграция устаревшего российского SNI vdsina.ru на чистый европейский github.com при сохранении Real-IP Split DNS для безупречной работы голоса Discord (WebRTC), 1С и RMS.'
+      },
+      {
+        icon: 'check',
+        title: 'Остановка спама телеметрии и ротация логов (5 МБ)',
+        desc: 'Отключён скрытый фоновый опрос 5 соединений каждые 5 секунд, уровень логов sing-box снижен до warn, внедрена авто-ротация сессионных логов и честный пинг активного сервера.'
+      }
+    ]
+  },
+  {
     version: '1.5.9',
     date: '09.10.2026',
-    isCurrent: true,
     highlights: [
       {
         icon: 'shield',

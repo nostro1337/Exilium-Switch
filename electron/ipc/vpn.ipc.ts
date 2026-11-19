@@ -21,10 +21,10 @@ export function registerVpnIpc(): void {
     const res = await singboxService.toggle(enable)
     TrayManager.getInstance().updateTrayMenu(res.isRunning)
 
+    // AI Sentinel telemetry is frozen; ensure background probing stays stopped to avoid
+    // spamming 5 VLESS connections every 5s and bloating session logs.
     try {
-      if (res.isRunning) {
-        TelemetryService.getInstance().startMonitoring()
-      } else {
+      if (!res.isRunning) {
         TelemetryService.getInstance().stopMonitoring()
       }
     } catch {}

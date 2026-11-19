@@ -22,7 +22,7 @@ describe('VLESS Parser & Config Generator Engine', () => {
 
     expect(name).toBe('NL-Amsterdam-Fast_HOME')
     expect(config).toBeDefined()
-    expect(config.log).toEqual({ level: 'info', timestamp: true })
+    expect(config.log).toEqual({ level: 'warn', timestamp: true })
 
     const outbounds = config.outbounds as Record<string, unknown>[]
     expect(outbounds).toHaveLength(2)
@@ -33,7 +33,10 @@ describe('VLESS Parser & Config Generator Engine', () => {
     expect(proxyOut.server_port).toBe(443)
     expect(proxyOut.uuid).toBe('b831381d-6324-4d53-ad4f-8cda48b30811')
     expect(proxyOut.flow).toBe('xtls-rprx-vision')
-    expect(proxyOut.tcp_fast_open).toBe(true)
+    expect(proxyOut.tcp_fast_open).toBe(false)
+    expect(proxyOut.tcp_keep_alive).toBe('30s')
+    expect(proxyOut.tcp_keep_alive_interval).toBe('10s')
+    expect(proxyOut.connect_timeout).toBe('5s')
 
     const tls = proxyOut.tls as Record<string, unknown>
     expect(tls.enabled).toBe(true)
@@ -43,6 +46,47 @@ describe('VLESS Parser & Config Generator Engine', () => {
     expect(reality.enabled).toBe(true)
     expect(reality.public_key).toBe('7bF_79R5O5jZ6y9mX3q1_ABCDEF1234567890abcdef')
     expect(reality.short_id).toBe('a1b2c3d4')
+
+    // Verify Real-IP Split DNS (no FakeIP on Windows) and QUIC rejected for TCP VLESS
+    const dns = config.dns as Record<string, unknown>
+    const dnsServers = dns.servers as Record<string, unknown>[]
+    expect(dnsServers.some(s => s.type === 'fakeip')).toBe(false)
+    const route = config.route as Record<string, unknown>
+    const routeRules = route.rules as Record<string, unknown>[]
+    expect(routeRules.some(r => r.protocol === 'quic' && r.action === 'reject')).toBe(true)
+  })
+
+  it('should parse hysteria2:// link cleanly without QUIC reject and validate with sing-box', () => {
+    const hy2Link = 'hysteria2://SecretPass123@89.124.94.246:443?sni=89.124.94.246&obfs=salamander&obfs-password=ObfsKey99&upmbps=100&downmbps=250#NL-Hysteria2'
+    const { config, name } = convertVlessToSingBoxConfig(hy2Link, 'home')
+
+    expect(name).toBe('NL-Hysteria2_HOME')
+    const outbounds = config.outbounds as Record<string, unknown>[]
+    const proxyOut = outbounds[0]
+    expect(proxyOut.type).toBe('hysteria2')
+    expect(proxyOut.server).toBe('89.124.94.246')
+    expect(proxyOut.server_port).toBe(443)
+    expect(proxyOut.password).toBe('SecretPass123')
+    expect(proxyOut.up_mbps).toBe(100)
+    expect(proxyOut.down_mbps).toBe(250)
+    expect(proxyOut.obfs).toEqual({ type: 'salamander', password: 'ObfsKey99' })
+
+    const route = config.route as Record<string, unknown>
+    const routeRules = route.rules as Record<string, unknown>[]
+    expect(routeRules.some(r => r.protocol === 'quic' && r.action === 'reject')).toBe(false)
+
+    const exePath = path.resolve(process.cwd(), 'sing-box/sing-box.exe')
+    if (fs.existsSync(exePath)) {
+      const tmpPath = path.join(os.tmpdir(), `singbox-hy2-${Date.now()}.json`)
+      try {
+        fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2), 'utf-8')
+        expect(() => {
+          execFileSync(exePath, ['check', '-c', tmpPath], { stdio: 'pipe' })
+        }).not.toThrow()
+      } finally {
+        if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath)
+      }
+    }
   })
 
   it('should generate Office Mode config with corporate DNS & split tunneling', () => {
@@ -347,13 +391,18 @@ describe('VLESS Parser & Config Generator Engine', () => {
     const realityOut = outbounds[0]
     const tls = realityOut.tls as Record<string, unknown>
     const reality = tls.reality as Record<string, unknown>
-    expect(tls.server_name).toBe('vdsina.ru')
+    // Custom valid SNI (dl.google.com) is preserved; deprecated RU SNIs (vdsina.ru) migrate to github.com
+    expect(tls.server_name).toBe('dl.google.com')
+    expect(realityOut.tcp_fast_open).toBe(false)
+    expect(realityOut.tcp_keep_alive).toBe('30s')
     expect(reality.short_id).toBe('d2206270cdf067')
     expect(reality.public_key).toBe('rtkFblJnh5rBZmpjlFaD7ju8TQHt8gl1LtK6pqwcEAw')
 
-    // 3. DNS assertions
+    // 3. DNS assertions (Real-IP Split DNS preserved for Discord WebRTC / RMS / 1C)
     const dns = legacyRealityConfig.dns as Record<string, unknown>
     expect(dns.reverse_mapping).toBe(true)
+    const dnsServers = dns.servers as Record<string, unknown>[]
+    expect(dnsServers.some(s => s.type === 'fakeip')).toBe(false)
     const dnsRules = dns.rules as Record<string, unknown>[]
     const hasStreamingDns = dnsRules.some(r => r.domain_suffix === STREAMING_AND_AI_DOMAINS && r.server === 'dns-remote')
     const hasTorrentDns = dnsRules.some(r => r.domain_suffix === TORRENT_TRACKER_DOMAINS && r.server === 'dns-remote')
@@ -366,12 +415,42 @@ describe('VLESS Parser & Config Generator Engine', () => {
     const routeRules = route.rules as Record<string, unknown>[]
     const hasStreamingRoute = routeRules.some(r => r.domain_suffix === STREAMING_AND_AI_DOMAINS && r.outbound === 'proxy-out')
     const hasDiscordUdp = routeRules.some(r => r.network === 'udp' && Array.isArray(r.port_range) && (r.port_range as string[]).includes('19294:19344'))
+    const hasQuicReject = routeRules.some(r => r.protocol === 'quic' && r.action === 'reject')
     expect(hasStreamingRoute).toBe(true)
     expect(hasDiscordUdp).toBe(true)
+    expect(hasQuicReject).toBe(true)
 
     // 5. Idempotency assertion
     const changed2 = migrateLegacyConfig(legacyRealityConfig)
     expect(changed2).toBe(false)
+  })
+
+  it('should migrate deprecated vdsina.ru Reality SNI on 89.124.94.246 to github.com', () => {
+    const oldVdsinaConfig: Record<string, unknown> = {
+      log: { level: 'info', timestamp: true },
+      outbounds: [
+        {
+          type: 'vless',
+          server: '89.124.94.246',
+          tcp_fast_open: true,
+          tls: {
+            enabled: true,
+            server_name: 'vdsina.ru',
+            reality: {
+              enabled: true,
+              public_key: 'rtkFblJnh5rBZmpjlFaD7ju8TQHt8gl1LtK6pqwcEAw',
+              short_id: 'd2206270cdf067'
+            }
+          }
+        }
+      ]
+    }
+    const changed = migrateLegacyConfig(oldVdsinaConfig)
+    expect(changed).toBe(true)
+    expect((oldVdsinaConfig.log as any).level).toBe('warn')
+    expect((oldVdsinaConfig.outbounds as any[])[0].tls.server_name).toBe('github.com')
+    expect((oldVdsinaConfig.outbounds as any[])[0].tcp_fast_open).toBe(false)
+    expect(migrateLegacyConfig(oldVdsinaConfig)).toBe(false)
   })
 
   it('should align outdated or corrupted Reality public_key for 89.124.94.246', () => {
@@ -488,7 +567,8 @@ describe('VLESS Parser & Config Generator Engine', () => {
 
     expect(fullLegacyProfile.inbounds[0].address).toEqual(['172.19.0.1/30'])
     expect(fullLegacyProfile.inbounds[0].stack).toBe('system')
-    expect(fullLegacyProfile.outbounds[0].tls.server_name).toBe('vdsina.ru')
+    expect(fullLegacyProfile.log.level).toBe('warn')
+    expect(fullLegacyProfile.outbounds[0].tls.server_name).toBe('dl.google.com')
     expect(fullLegacyProfile.outbounds[0].tls.reality.short_id).toBe('d2206270cdf067')
     expect(fullLegacyProfile.dns.reverse_mapping).toBe(true)
 
@@ -508,16 +588,17 @@ describe('VLESS Parser & Config Generator Engine', () => {
     }
   })
 
-  it('should verify live user profiles in APPDATA are already fully migrated and idempotent', () => {
+  it('should verify live user profiles in APPDATA migrate cleanly and are idempotent', () => {
     const appData = process.env.APPDATA || (process.env.USERPROFILE ? path.join(process.env.USERPROFILE, 'AppData', 'Roaming') : '')
     if (!appData) return
     const homeProfilePath = path.join(appData, 'ExiliumSwitch', 'profiles', 'nl-reality-nostro-pc_home-mtd81aa9.json')
     if (fs.existsSync(homeProfilePath)) {
       const content = JSON.parse(fs.readFileSync(homeProfilePath, 'utf-8'))
+      migrateLegacyConfig(content)
       expect(migrateLegacyConfig(content)).toBe(false)
       expect(content.inbounds[0].stack).toBe('system')
       expect(content.inbounds[0].address).toEqual(['172.19.0.1/30'])
-      expect(content.outbounds[0].tls.server_name).toBe('vdsina.ru')
+      expect(content.outbounds[0].tls.server_name).toBe('github.com')
       expect(content.outbounds[0].tls.reality.short_id).toBe('d2206270cdf067')
     }
   })

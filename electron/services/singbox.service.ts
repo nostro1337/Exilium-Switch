@@ -36,11 +36,11 @@ export class SingBoxService {
     const resPath = process.resourcesPath || process.cwd()
 
     const candidates = [
-      'C:\\sing-box',
       path.join(resPath, 'sing-box'),
       path.join(appPath, 'sing-box'),
       path.join(__dirname, '..', '..', 'sing-box'),
-      path.resolve('sing-box')
+      path.resolve('sing-box'),
+      'C:\\sing-box'
     ]
 
     for (const candidate of candidates) {

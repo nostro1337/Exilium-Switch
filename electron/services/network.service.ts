@@ -1,9 +1,8 @@
 import net from 'node:net'
 import fs from 'node:fs'
-import path from 'node:path'
 import { execFileAsync } from '../utils/exec'
 import { DEFAULT_PING_TARGET } from '../core/constants'
-import { LogService } from './log.service'
+import { ProfileService } from './profile.service'
 
 export class NetworkService {
   private static instance: NetworkService
@@ -123,7 +122,29 @@ export class NetworkService {
     } catch {}
   }
 
-  public async testLatency(targetHost = DEFAULT_PING_TARGET, targetPort = 443): Promise<{ latencyMs: number | null; error?: string }> {
+  public resolveActiveServerTarget(): { host: string; port: number } {
+    try {
+      const active = ProfileService.getInstance().getActiveProfile()
+      if (active && active.path && fs.existsSync(active.path)) {
+        const cfg = JSON.parse(fs.readFileSync(active.path, 'utf-8')) as { outbounds?: Array<Record<string, unknown>> }
+        if (Array.isArray(cfg.outbounds)) {
+          const proxy = cfg.outbounds.find(o => o && typeof o.server === 'string' && o.server.trim().length > 0)
+          if (proxy && typeof proxy.server === 'string') {
+            const port = typeof proxy.server_port === 'number' && proxy.server_port > 0 ? proxy.server_port : 443
+            return { host: proxy.server.trim(), port }
+          }
+        }
+      }
+    } catch {}
+    return { host: DEFAULT_PING_TARGET, port: 443 }
+  }
+
+  public async testLatency(targetHost?: string, targetPort?: number): Promise<{ latencyMs: number | null; error?: string }> {
+    const resolved = (!targetHost || !targetPort) ? this.resolveActiveServerTarget() : { host: targetHost, port: targetPort }
+    const host = targetHost || resolved.host
+    const port = targetPort || resolved.port
+    const isLoopback = host === '127.0.0.1' || host === 'localhost' || host === '::1'
+
     // 0. Ensure a brief stabilization delay (500-600ms) before the first latency test ping after tunnel start
     if (this.lastTunnelStartTime > 0) {
       const startTime = this.lastTunnelStartTime
@@ -137,13 +158,14 @@ export class NetworkService {
 
     // 1. Try multi-sample physical ICMP ping via Windows ping.exe (2 packets, 1000ms timeout)
     try {
-      const { stdout } = await execFileAsync('ping.exe', ['-n', '2', '-w', '1000', targetHost], { timeout: 2500 })
-      
+      const { stdout } = await execFileAsync('ping.exe', ['-n', '2', '-w', '1000', host], { timeout: 2500 })
+      const minValidMs = isLoopback ? 1 : 3
+
       // Look for Windows summary line first (Average = XXms / Среднее = XX мсек)
       const avgMatch = stdout.match(/(?:Average|Среднее)\s*=\s*(\d+)\s*(?:ms|мс)?/i)
       if (avgMatch && avgMatch[1]) {
         const avgVal = parseInt(avgMatch[1], 10)
-        if (!isNaN(avgVal) && avgVal >= 1) {
+        if (!isNaN(avgVal) && avgVal >= minValidMs) {
           return { latencyMs: avgVal }
         }
       }
@@ -153,7 +175,7 @@ export class NetworkService {
       if (matches.length > 0) {
         const values = matches
           .map(m => parseInt(m[1], 10))
-          .filter(v => !isNaN(v) && v >= 1)
+          .filter(v => !isNaN(v) && v >= minValidMs)
         if (values.length > 0) {
           const minPing = Math.min(...values)
           return { latencyMs: minPing }
@@ -165,7 +187,7 @@ export class NetworkService {
     const sampleTcpLatency = (): Promise<number> => {
       return new Promise<number>((resolve, reject) => {
         const startTime = Date.now()
-        const socket = net.createConnection({ host: targetHost, port: targetPort, timeout: 1500 }, () => {
+        const socket = net.createConnection({ host, port, timeout: 1500 }, () => {
           const latency = Date.now() - startTime
           socket.destroy()
           resolve(latency)

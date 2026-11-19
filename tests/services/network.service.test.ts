@@ -109,4 +109,24 @@ Enabled        Connected      Dedicated        wintun
     networkService.notifyTunnelStopped()
     expect(networkService.getLastTunnelStartTime()).toBe(0)
   })
+
+  it('should resolve active server host and port safely with fallback', () => {
+    const target = networkService.resolveActiveServerTarget()
+    expect(target).toBeDefined()
+    expect(typeof target.host).toBe('string')
+    expect(target.host.length).toBeGreaterThan(0)
+    expect(typeof target.port).toBe('number')
+    expect(target.port).toBeGreaterThan(0)
+  })
+
+  it('should ignore fake <=2ms Wintun ICMP replies for remote hosts and fallback to TCP', async () => {
+    vi.spyOn(execModule, 'execFileAsync').mockResolvedValueOnce({
+      stdout: 'Reply from 89.124.94.246: bytes=32 time<1ms TTL=64\nAverage = 0ms',
+      stderr: ''
+    })
+    const res = await networkService.testLatency('192.0.2.1', 65534)
+    expect(res).toBeDefined()
+    // Must not return bogus 0ms ICMP reply
+    expect(res.latencyMs === null || res.latencyMs >= 3).toBe(true)
+  })
 })

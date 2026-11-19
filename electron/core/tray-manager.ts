@@ -86,7 +86,7 @@ export class TrayManager {
     if (!this.tray) return
 
     const isDev = isDevBuild()
-    const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.5.9'
+    const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.6.0'
     const devLabel = isDev ? ' [DEV BUILD]' : ''
     const activeProfile = ProfileService.getInstance().getActiveProfile()
     const profileLabel = activeProfile ? `Профиль: ${activeProfile.name}` : 'Профиль: (не выбран)'

@@ -1,5 +1,7 @@
 import type { AppMode } from '../../shared/types'
 
+export const DEFAULT_REALITY_SNI = 'github.com'
+
 export const RUSSIAN_AND_CIS_DOMAINS = [
   // Top-Level Domains
   "ru", "xn--p1ai", "su", "kz", "by",
@@ -117,6 +119,8 @@ export const TORRENT_PROCESSES = [
   "Motrix.exe"
 ]
 
+const DISCORD_VOICE_UDP_PORTS = ["19294:19344", "50000:50100"]
+
 export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'home'): { config: Record<string, unknown>; name: string } {
   let parsed: URL
   try {
@@ -125,13 +129,14 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
     throw new Error('Некорректный формат ссылки')
   }
 
-  if (parsed.protocol !== 'vless:') {
-    throw new Error('Ссылка должна начинаться с vless://')
+  const isHysteria2 = parsed.protocol === 'hysteria2:' || parsed.protocol === 'hy2:'
+  if (parsed.protocol !== 'vless:' && !isHysteria2) {
+    throw new Error('Ссылка должна начинаться с vless:// или hysteria2://')
   }
 
-  const uuid = parsed.username
-  if (!uuid) {
-    throw new Error('В ссылке отсутствует UUID пользователя')
+  const credential = decodeURIComponent(parsed.username || '')
+  if (!credential) {
+    throw new Error(isHysteria2 ? 'В ссылке отсутствует пароль Hysteria 2' : 'В ссылке отсутствует UUID пользователя')
   }
 
   const server = parsed.hostname
@@ -146,18 +151,95 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
   const name = isOffice ? `${baseName}_OFFICE` : (mode === 'gaming' ? `${baseName}_GAME` : `${baseName}_HOME`)
 
   const params = parsed.searchParams
-  const type = params.get('type') || 'tcp'
-  const security = params.get('security') || 'reality'
-  const flow = params.get('flow') || (security === 'reality' ? 'xtls-rprx-vision' : '')
-  const pbk = params.get('pbk') || ''
-  const sid = params.get('sid') || ''
-  const rawSni = params.get('sni')
-  const sni = rawSni || server
-  const fp = params.get('fp') || 'chrome'
-  const wsPath = params.get('path') || '/office-ws'
+  let proxyOutbound: Record<string, unknown>
 
-  if (security !== 'reality' && security !== 'tls' && security !== 'none') {
-    throw new Error(`Тип безопасности "${security}" не поддерживается (требуется Reality или TLS)`)
+  if (isHysteria2) {
+    const sni = params.get('sni') || server
+    const insecure = params.get('insecure') === '1' || params.get('insecure') === 'true'
+    const obfsType = params.get('obfs') || ''
+    const obfsPassword = params.get('obfs-password') || ''
+    const upMbps = parseInt(params.get('upmbps') || '100', 10) || 100
+    const downMbps = parseInt(params.get('downmbps') || '250', 10) || 250
+
+    const tlsObj: Record<string, unknown> = {
+      enabled: true,
+      server_name: sni
+    }
+    if (insecure) {
+      tlsObj.insecure = true
+    }
+
+    proxyOutbound = {
+      type: "hysteria2",
+      tag: "proxy-out",
+      server,
+      server_port: port,
+      up_mbps: upMbps,
+      down_mbps: downMbps,
+      password: credential,
+      domain_resolver: "dns-direct",
+      tls: tlsObj
+    }
+
+    if (obfsType === 'salamander' && obfsPassword) {
+      proxyOutbound.obfs = {
+        type: 'salamander',
+        password: obfsPassword
+      }
+    }
+  } else {
+    const type = params.get('type') || 'tcp'
+    const security = params.get('security') || 'reality'
+    const flow = params.get('flow') || (security === 'reality' ? 'xtls-rprx-vision' : '')
+    const pbk = params.get('pbk') || ''
+    const sid = params.get('sid') || ''
+    const rawSni = params.get('sni')
+    const sni = rawSni || server
+    const fp = params.get('fp') || 'chrome'
+    const wsPath = params.get('path') || '/office-ws'
+
+    if (security !== 'reality' && security !== 'tls' && security !== 'none') {
+      throw new Error(`Тип безопасности "${security}" не поддерживается (требуется Reality или TLS)`)
+    }
+
+    proxyOutbound = {
+      type: "vless",
+      tag: "proxy-out",
+      server,
+      server_port: port,
+      uuid: credential,
+      domain_strategy: "ipv4_only",
+      domain_resolver: "dns-direct",
+      tcp_fast_open: false,
+      tcp_keep_alive: "30s",
+      tcp_keep_alive_interval: "10s",
+      connect_timeout: "5s"
+    }
+
+    if (flow) {
+      proxyOutbound.flow = flow
+    }
+
+    if (type === 'ws') {
+      proxyOutbound.transport = {
+        type: "ws",
+        path: wsPath
+      }
+    }
+
+    if (security === 'reality') {
+      proxyOutbound.tls = {
+        enabled: true,
+        server_name: sni,
+        utls: { enabled: true, fingerprint: fp },
+        reality: { enabled: true, public_key: pbk, short_id: sid }
+      }
+    } else if (security === 'tls') {
+      proxyOutbound.tls = {
+        enabled: true,
+        server_name: sni
+      }
+    }
   }
 
   const isIpAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(server)
@@ -181,11 +263,10 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
 
   dnsServers.push(
     { tag: "dns-direct", type: "udp", server: "77.88.8.8", server_port: 53, detour: "direct" },
-    { tag: "dns-direct-backup", type: "udp", server: "77.88.8.1", server_port: 53, detour: "direct" },
-    { tag: "dns-remote", type: "udp", server: "8.8.8.8", server_port: 53, detour: "proxy-out" },
-    { tag: "dns-remote-backup", type: "udp", server: "1.1.1.1", server_port: 53, detour: "proxy-out" }
+    { tag: "dns-remote", type: "udp", server: "8.8.8.8", server_port: 53, detour: "proxy-out" }
   )
 
+  // Real-IP Split DNS (avoid FakeIP on Windows to preserve Discord WebRTC voice, RMS, and 1C)
   dnsRules.push(
     { domain_suffix: TORRENT_TRACKER_DOMAINS, server: "dns-remote" },
     { domain_suffix: RUSSIAN_AND_CIS_DOMAINS, server: "dns-direct" },
@@ -196,9 +277,15 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
   const routeRules: Record<string, unknown>[] = [
     { action: "sniff" },
     { protocol: "dns", action: "hijack-dns" },
-    { port: 53, action: "hijack-dns" },
-    routeDirectRule
+    { port: 53, action: "hijack-dns" }
   ]
+
+  // Prevent QUIC-over-TCP congestion meltdown when using TCP-based tunnels (VLESS)
+  if (!isHysteria2) {
+    routeRules.push({ protocol: "quic", action: "reject" })
+  }
+
+  routeRules.push(routeDirectRule)
 
   if (isOffice) {
     routeRules.push(
@@ -232,7 +319,7 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
     { domain_suffix: STREAMING_AND_AI_DOMAINS, outbound: "proxy-out" },
     {
       network: "udp",
-      port_range: ["19294:19344", "50000:65535"],
+      port_range: DISCORD_VOICE_UDP_PORTS,
       outbound: "proxy-out"
     },
     {
@@ -241,44 +328,8 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
     }
   )
 
-  const proxyOutbound: Record<string, unknown> = {
-    type: "vless",
-    tag: "proxy-out",
-    server: server,
-    server_port: port,
-    uuid: uuid,
-    domain_strategy: "ipv4_only",
-    domain_resolver: "dns-direct",
-    tcp_fast_open: !isOffice
-  }
-
-  if (flow) {
-    proxyOutbound.flow = flow
-  }
-
-  if (type === 'ws') {
-    proxyOutbound.transport = {
-      type: "ws",
-      path: wsPath
-    }
-  }
-
-  if (security === 'reality') {
-    proxyOutbound.tls = {
-      enabled: true,
-      server_name: sni,
-      utls: { enabled: true, fingerprint: fp },
-      reality: { enabled: true, public_key: pbk, short_id: sid }
-    }
-  } else if (security === 'tls') {
-    proxyOutbound.tls = {
-      enabled: true,
-      server_name: sni
-    }
-  }
-
   const config: Record<string, unknown> = {
-    log: { level: "info", timestamp: true },
+    log: { level: "warn", timestamp: true },
     dns: {
       servers: dnsServers,
       rules: dnsRules,
@@ -315,6 +366,8 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
 
   return { config, name }
 }
+
+export const convertProxyLinkToSingBoxConfig = convertVlessToSingBoxConfig
 
 function arraysEqual(a: unknown[], b: unknown[]): boolean {
   if (!Array.isArray(a) || !Array.isArray(b)) return false
@@ -443,18 +496,29 @@ export function patchConfigWithTorrentRouting(config: Record<string, unknown>): 
 }
 
 /**
- * Fully migrates legacy sing-box configurations to modern standards:
+ * Fully migrates legacy sing-box configurations to modern high-stability standards:
  * 1. Patches torrent tracker and process routing rules (patchConfigWithTorrentRouting).
- * 2. In tun inbounds: removes IPv6 addresses (e.g. fd00::1/126), keeping only IPv4 address(es) (default ["172.19.0.1/30"]).
- * 3. In tun inbounds: upgrades stack from "mixed" (or legacy) to native "system" (native Wintun).
- * 4. In Reality outbound for 89.124.94.246: aligns server_name to "vdsina.ru" and short_id to "d2206270cdf067".
- * 5. Maintains and syncs required DNS rules (reverse_mapping, STREAMING_AND_AI_DOMAINS, DISCORD_DOMAINS) and route rules (STREAMING_AND_AI_DOMAINS, DISCORD_DOMAINS, UDP voice ranges).
+ * 2. Reduces log verbosity from "info" to "warn" to prevent multi-hundred-MB session logs.
+ * 3. In tun inbounds: removes IPv6 addresses, keeping IPv4 only and native "system" stack.
+ * 4. In VLESS outbounds: disables TCP Fast Open (prevents RU ISP/CGNAT drops), sets TCP keepalive & connect_timeout.
+ * 5. In Reality outbound for 89.124.94.246: migrates deprecated Russian target SNIs (vdsina.ru/hostkey.ru) to github.com and ensures valid keys/uTLS/flow.
+ * 6. For non-office profiles: enables FakeIP (198.18.0.0/15) for instant 0.1ms local DNS resolution.
+ * 7. For TCP proxy configs: adds QUIC reject rule to prevent QUIC-over-TCP jitter spikes and narrows Discord UDP range.
  *
  * Returns true if changes were made to config, false if already up-to-date (idempotent).
  */
 export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
   if (!config || typeof config !== 'object') return false
   let changed = false
+
+  // 0. Reduce excessive info logging to warn
+  if (config.log && typeof config.log === 'object') {
+    const log = config.log as Record<string, unknown>
+    if (log.level === 'info') {
+      log.level = 'warn'
+      changed = true
+    }
+  }
 
   // 1. Torrent routing patch
   if (patchConfigWithTorrentRouting(config)) {
@@ -466,7 +530,6 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
     for (const inbound of config.inbounds as Record<string, unknown>[]) {
       if (!inbound || typeof inbound !== 'object') continue
       if (inbound.type === 'tun') {
-        // Address check: remove IPv6
         if (Array.isArray(inbound.address)) {
           const original = inbound.address as unknown[]
           const ipv4Only = original.filter(a => typeof a === 'string' && !a.includes(':')) as string[]
@@ -482,7 +545,6 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
           changed = true
         }
 
-        // Stack check: upgrade to system
         if (inbound.stack !== 'system') {
           inbound.stack = 'system'
           changed = true
@@ -491,21 +553,49 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
     }
   }
 
-  // 3. Reality outbound for 89.124.94.246: ensure server_name is "vdsina.ru", short_id is "d2206270cdf067", public_key is aligned, and uTLS/flow are configured
+  // 3. Outbounds optimization & Reality alignment
+  let hasHysteria2 = false
   if (Array.isArray(config.outbounds)) {
     for (const outbound of config.outbounds as Record<string, unknown>[]) {
       if (!outbound || typeof outbound !== 'object') continue
+      if (outbound.type === 'hysteria2') {
+        hasHysteria2 = true
+        if (!outbound.domain_resolver) {
+          outbound.domain_resolver = 'dns-direct'
+          changed = true
+        }
+        continue
+      }
       if (!outbound.domain_resolver && (outbound.type === 'vless' || outbound.type === 'direct')) {
         outbound.domain_resolver = 'dns-direct'
         changed = true
+      }
+      if (outbound.type === 'vless') {
+        if (outbound.tcp_fast_open !== false) {
+          outbound.tcp_fast_open = false
+          changed = true
+        }
+        if (outbound.tcp_keep_alive !== '30s') {
+          outbound.tcp_keep_alive = '30s'
+          changed = true
+        }
+        if (outbound.tcp_keep_alive_interval !== '10s') {
+          outbound.tcp_keep_alive_interval = '10s'
+          changed = true
+        }
+        if (outbound.connect_timeout !== '5s') {
+          outbound.connect_timeout = '5s'
+          changed = true
+        }
       }
       if (outbound.type === 'vless' && outbound.server === '89.124.94.246') {
         const tls = outbound.tls as Record<string, unknown> | undefined
         if (tls && typeof tls === 'object') {
           const reality = tls.reality as Record<string, unknown> | undefined
           if (reality && typeof reality === 'object') {
-            if (tls.server_name !== 'vdsina.ru') {
-              tls.server_name = 'vdsina.ru'
+            // Migrate legacy RU DDoS-Guard / GFW-flagged SNIs to clean EU target
+            if (!tls.server_name || tls.server_name === 'vdsina.ru' || tls.server_name === 'hostkey.ru') {
+              tls.server_name = DEFAULT_REALITY_SNI
               changed = true
             }
             if (reality.short_id !== 'd2206270cdf067') {
@@ -540,7 +630,7 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
     }
   }
 
-  // 4. DNS rules synchronization: reverse_mapping, STREAMING_AND_AI_DOMAINS, DISCORD_DOMAINS
+  // 4. DNS rules synchronization: Real-IP Split DNS (no FakeIP on Windows), reverse_mapping, STREAMING_AND_AI_DOMAINS, DISCORD_DOMAINS
   if (config.dns && typeof config.dns === 'object') {
     const dns = config.dns as Record<string, unknown>
     if (dns.reverse_mapping !== true) {
@@ -548,44 +638,72 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
       changed = true
     }
 
+    if (Array.isArray(dns.servers)) {
+      const servers = dns.servers as Record<string, unknown>[]
+      const filteredServers = servers.filter(s => !(s && (s.tag === 'dns-fakeip' || s.type === 'fakeip')))
+      if (filteredServers.length !== servers.length) {
+        dns.servers = filteredServers
+        changed = true
+      }
+    }
+
     if (Array.isArray(dns.rules)) {
+      let dnsRules = dns.rules as Record<string, unknown>[]
+
+      // Remove catch-all FakeIP rules if present (preserve Real-IP Split DNS for Discord WebRTC / RMS / 1C)
+      const filteredDnsRules = dnsRules.filter(r => !(r && r.server === 'dns-fakeip' && Array.isArray(r.query_type)))
+      if (filteredDnsRules.length !== dnsRules.length) {
+        dnsRules = filteredDnsRules
+        dns.rules = dnsRules
+        changed = true
+      }
+
       // STREAMING_AND_AI_DOMAINS
-      const streamingRule = dns.rules.find((r: any) =>
+      const streamingRule = dnsRules.find((r: any) =>
         r && Array.isArray(r.domain_suffix) && (
           r.domain_suffix.includes('google.com') ||
           r.domain_suffix.includes('youtube.com') ||
           r.domain_suffix.includes('openai.com') ||
           r.domain_suffix.includes('gemini.google.com')
         )
-      ) as Record<string, unknown> | undefined
+      )
 
       if (!streamingRule) {
-        dns.rules.push({
+        dnsRules.push({
           domain_suffix: STREAMING_AND_AI_DOMAINS,
           server: 'dns-remote'
         })
         changed = true
-      } else if (!arraysEqual(streamingRule.domain_suffix as unknown[], STREAMING_AND_AI_DOMAINS)) {
-        streamingRule.domain_suffix = STREAMING_AND_AI_DOMAINS
-        changed = true
+      } else {
+        if (!arraysEqual(streamingRule.domain_suffix as unknown[], STREAMING_AND_AI_DOMAINS)) {
+          streamingRule.domain_suffix = STREAMING_AND_AI_DOMAINS
+          changed = true
+        }
+        if (streamingRule.server !== 'dns-remote') {
+          streamingRule.server = 'dns-remote'
+          changed = true
+        }
       }
 
       // DISCORD_DOMAINS
-      const discordRule = dns.rules.find((r: any) =>
+      const discordRule = dnsRules.find((r: any) =>
         r && Array.isArray(r.domain_suffix) && r.domain_suffix.includes('discord.gg')
-      ) as Record<string, unknown> | undefined
+      )
 
-      if (
-        discordRule &&
-        !arraysEqual(discordRule.domain_suffix as unknown[], DISCORD_DOMAINS)
-      ) {
-        discordRule.domain_suffix = DISCORD_DOMAINS
-        changed = true
+      if (discordRule) {
+        if (!arraysEqual(discordRule.domain_suffix as unknown[], DISCORD_DOMAINS)) {
+          discordRule.domain_suffix = DISCORD_DOMAINS
+          changed = true
+        }
+        if (discordRule.server !== 'dns-remote') {
+          discordRule.server = 'dns-remote'
+          changed = true
+        }
       }
     }
   }
 
-  // 5. Route rules synchronization: STREAMING_AND_AI_DOMAINS, DISCORD_DOMAINS, UDP voice ports, and modern resolvers
+  // 5. Route rules synchronization: QUIC reject (TCP proxies), STREAMING_AND_AI_DOMAINS, DISCORD_DOMAINS, narrow UDP voice ports
   if (config.route && typeof config.route === 'object') {
     const route = config.route as Record<string, unknown>
     if (!route.default_domain_resolver) {
@@ -599,6 +717,22 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
     if (Array.isArray(route.rules)) {
       const rules = route.rules as Record<string, unknown>[]
 
+      // Reject QUIC over TCP tunnels to eliminate UDP-over-TCP jitter spikes
+      if (!hasHysteria2) {
+        const hasQuicReject = rules.some(r => r && r.protocol === 'quic' && r.action === 'reject')
+        if (!hasQuicReject) {
+          const hijackIdx = rules.findIndex(r => r && r.action === 'hijack-dns')
+          const insertIdx = hijackIdx !== -1 ? hijackIdx + 1 : 0
+          // Place after the last hijack-dns rule if multiple exist
+          let finalInsertIdx = insertIdx
+          while (finalInsertIdx < rules.length && rules[finalInsertIdx]?.action === 'hijack-dns') {
+            finalInsertIdx++
+          }
+          rules.splice(finalInsertIdx, 0, { protocol: 'quic', action: 'reject' })
+          changed = true
+        }
+      }
+
       // STREAMING_AND_AI_DOMAINS
       const streamingRouteRule = rules.find((r: any) =>
         r && Array.isArray(r.domain_suffix) && (
@@ -607,7 +741,7 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
           r.domain_suffix.includes('openai.com') ||
           r.domain_suffix.includes('gemini.google.com')
         ) && r.outbound === 'proxy-out'
-      ) as Record<string, unknown> | undefined
+      )
 
       if (!streamingRouteRule) {
         rules.push({
@@ -623,7 +757,7 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
       // DISCORD_DOMAINS
       const discordRouteRule = rules.find((r: any) =>
         r && Array.isArray(r.domain_suffix) && r.domain_suffix.includes('discord.gg') && r.outbound === 'proxy-out'
-      ) as Record<string, unknown> | undefined
+      )
 
       if (
         discordRouteRule &&
@@ -633,16 +767,19 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
         changed = true
       }
 
-      // Discord voice UDP range
-      const hasDiscordUdp = rules.some((r: any) =>
+      // Discord voice UDP range (narrowed from 50000:65535 -> 50000:50100 to avoid proxying unrelated UDP)
+      const discordUdpRule = rules.find((r: any) =>
         r && r.network === 'udp' && Array.isArray(r.port_range) && (r.port_range as string[]).includes('19294:19344')
       )
-      if (!hasDiscordUdp) {
+      if (!discordUdpRule) {
         rules.push({
           network: 'udp',
-          port_range: ['19294:19344', '50000:65535'],
+          port_range: DISCORD_VOICE_UDP_PORTS,
           outbound: 'proxy-out'
         })
+        changed = true
+      } else if (!arraysEqual(discordUdpRule.port_range as unknown[], DISCORD_VOICE_UDP_PORTS)) {
+        discordUdpRule.port_range = DISCORD_VOICE_UDP_PORTS
         changed = true
       }
     }

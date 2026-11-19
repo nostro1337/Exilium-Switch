@@ -88,4 +88,12 @@ describe('LogService Ring Buffer & Parser', () => {
     expect(typeof sessionFile).toBe('string')
     expect(sessionFile.length).toBeGreaterThan(0)
   })
+
+  it('should rotate session log file when exceeding maxSessionFileBytes limit', () => {
+    logService.initSessionFile()
+    ;(logService as any).sessionBytesWritten = (logService as any).maxSessionFileBytes
+    const entry = logService.addLog('Trigger rotation entry', 'info')
+    expect(entry.text).toBe('Trigger rotation entry')
+    expect((logService as any).sessionBytesWritten).toBeLessThan((logService as any).maxSessionFileBytes)
+  })
 })

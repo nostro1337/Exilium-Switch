@@ -96,7 +96,7 @@ describe('ProfileService Comprehensive Management', () => {
           tag: 'proxy-out',
           server: '89.124.94.246',
           tls: {
-            server_name: 'dl.google.com',
+            server_name: 'vdsina.ru',
             reality: {
               short_id: '91c892320e'
             }
@@ -122,7 +122,7 @@ describe('ProfileService Comprehensive Management', () => {
     expect(diskContent.route.find_process).toBe(true)
     expect(diskContent.inbounds[0].address).toEqual(['172.19.0.1/30'])
     expect(diskContent.inbounds[0].stack).toBe('system')
-    expect(diskContent.outbounds[0].tls.server_name).toBe('vdsina.ru')
+    expect(diskContent.outbounds[0].tls.server_name).toBe('github.com')
     expect(diskContent.outbounds[0].tls.reality.short_id).toBe('d2206270cdf067')
 
     const rules = diskContent.route.rules as Record<string, unknown>[]
@@ -134,13 +134,13 @@ describe('ProfileService Comprehensive Management', () => {
   })
 
   it('should immediately migrate legacy Reality parameters when importing VLESS link', () => {
-    const legacyUrl = 'vless://2ae02656-034b-4868-acbe-9ead1de7ce6c@89.124.94.246:443?type=tcp&security=reality&pbk=rtkFblJnh5rBZmpjlFaD7ju8TQHt8gl1LtK6pqwcEAw&fp=chrome&sni=dl.google.com&sid=91c892320e&flow=xtls-rprx-vision#Legacy-Link'
+    const legacyUrl = 'vless://2ae02656-034b-4868-acbe-9ead1de7ce6c@89.124.94.246:443?type=tcp&security=reality&pbk=rtkFblJnh5rBZmpjlFaD7ju8TQHt8gl1LtK6pqwcEAw&fp=chrome&sni=vdsina.ru&sid=91c892320e&flow=xtls-rprx-vision#Legacy-Link'
     const imported = profileService.importVlessLink(legacyUrl, 'home')
     expect(imported.success).toBe(true)
     const profile = imported.profile!
 
     const diskContent = JSON.parse(fs.readFileSync(profile.path, 'utf-8'))
-    expect(diskContent.outbounds[0].tls.server_name).toBe('vdsina.ru')
+    expect(diskContent.outbounds[0].tls.server_name).toBe('github.com')
     expect(diskContent.outbounds[0].tls.reality.short_id).toBe('d2206270cdf067')
     expect(diskContent.outbounds[0].tls.reality.public_key).toBe('rtkFblJnh5rBZmpjlFaD7ju8TQHt8gl1LtK6pqwcEAw')
     expect(diskContent.inbounds[0].stack).toBe('system')

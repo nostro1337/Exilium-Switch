@@ -13,6 +13,8 @@ export class LogService {
   private static instance: LogService
   private buffer: LogEntry[] = []
   private readonly maxBufferSize = 1500
+  private readonly maxSessionFileBytes = 5 * 1024 * 1024 // 5 MB cap per session log
+  private sessionBytesWritten = 0
   private listeners: Set<LogListener> = new Set()
   private sessionFilePath: string | null = null
   private logStream: fs.WriteStream | null = null
@@ -40,12 +42,13 @@ export class LogService {
       this.sessionFilePath = path.join(logsDir, `exilium-session-${timestamp}.log`)
 
       const isDev = isDevBuild()
-      const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.5.9'
+      const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.6.0'
       const sessionStart = new Date().toISOString()
       const modeBadge = isDev ? ' [DEV BUILD]' : ''
       const header = `=== EXILIUM SWITCH v${version}${modeBadge} SESSION STARTED [${sessionStart}] (by Nostro) ===\n`
 
       fs.writeFileSync(this.sessionFilePath, header, 'utf-8')
+      this.sessionBytesWritten = Buffer.byteLength(header, 'utf-8')
       try {
         if (this.logStream) {
           this.logStream.end()
@@ -122,10 +125,28 @@ export class LogService {
       const catBadge = `[${category.toUpperCase().padEnd(8)}]`
       const typeBadge = `[${type.toUpperCase().padEnd(4)}]`
       const line = `[${time}] ${catBadge} ${typeBadge} ${text}\n`
+      const lineBytes = Buffer.byteLength(line, 'utf-8')
+
+      // Rotate session log file in-place once it exceeds 5 MB to prevent multi-hundred-MB disk bloat
+      if (this.sessionFilePath && this.sessionBytesWritten + lineBytes > this.maxSessionFileBytes) {
+        try {
+          if (this.logStream) {
+            this.logStream.end()
+            this.logStream = null
+          }
+          const rotHeader = `=== LOG ROTATED [${new Date().toISOString()}] (5 MB limit) ===\n`
+          fs.writeFileSync(this.sessionFilePath, rotHeader, 'utf-8')
+          this.sessionBytesWritten = Buffer.byteLength(rotHeader, 'utf-8')
+          this.logStream = fs.createWriteStream(this.sessionFilePath, { flags: 'a', encoding: 'utf-8' })
+        } catch {}
+      }
+
       if (this.logStream) {
         this.logStream.write(line)
+        this.sessionBytesWritten += lineBytes
       } else if (this.sessionFilePath) {
         fs.appendFileSync(this.sessionFilePath, line, 'utf-8')
+        this.sessionBytesWritten += lineBytes
       }
     } catch {}
 
