@@ -36,7 +36,7 @@ describe('VLESS Parser & Config Generator Engine', () => {
     expect(proxyOut.tcp_fast_open).toBe(false)
     expect(proxyOut.tcp_keep_alive).toBe('30s')
     expect(proxyOut.tcp_keep_alive_interval).toBe('10s')
-    expect(proxyOut.connect_timeout).toBe('5s')
+    expect(proxyOut.connect_timeout).toBe('8s')
 
     const tls = proxyOut.tls as Record<string, unknown>
     expect(tls.enabled).toBe(true)
@@ -58,6 +58,9 @@ describe('VLESS Parser & Config Generator Engine', () => {
     expect(dnsServers.some(s => s.type === 'fakeip')).toBe(false)
     const route = config.route as Record<string, unknown>
     const routeRules = route.rules as Record<string, unknown>[]
+    expect(routeRules.some(r => r.action === 'sniff')).toBe(true)
+    expect(routeRules.some(r => r.protocol === 'dns' && r.action === 'hijack-dns')).toBe(true)
+    expect(routeRules.some(r => r.port === 53 && r.action === 'hijack-dns')).toBe(false)
     expect(routeRules.some(r => r.protocol === 'quic' && r.action === 'reject')).toBe(true)
     const tgIdx = routeRules.findIndex(r => Array.isArray(r.ip_cidr) && (r.ip_cidr as string[]).includes('149.154.160.0/20') && r.outbound === 'proxy-out')
     const ruIdx = routeRules.findIndex(r => Array.isArray(r.domain_suffix) && (r.domain_suffix as string[]).includes('ru') && r.outbound === 'direct')
@@ -83,6 +86,9 @@ describe('VLESS Parser & Config Generator Engine', () => {
 
     const route = config.route as Record<string, unknown>
     const routeRules = route.rules as Record<string, unknown>[]
+    expect(routeRules.some(r => r.action === 'sniff')).toBe(true)
+    expect(routeRules.some(r => r.protocol === 'dns' && r.action === 'hijack-dns')).toBe(true)
+    expect(routeRules.some(r => r.port === 53 && r.action === 'hijack-dns')).toBe(false)
     expect(routeRules.some(r => r.protocol === 'quic' && r.action === 'reject')).toBe(true)
 
     const exePath = path.resolve(process.cwd(), 'sing-box/sing-box.exe')
@@ -144,6 +150,7 @@ describe('VLESS Parser & Config Generator Engine', () => {
     const tls = proxyOut.tls as Record<string, unknown>
     expect(tls.enabled).toBe(true)
     expect(tls.server_name).toBe('myvpn.domain.com')
+    expect(tls.utls).toEqual({ enabled: true, fingerprint: 'firefox' })
   })
 
   it('should reject malformed or non-vless URLs', () => {
@@ -552,6 +559,8 @@ describe('VLESS Parser & Config Generator Engine', () => {
     expect(migrateLegacyConfig(legacyHy2Config)).toBe(true)
     const hy2Rules = (legacyHy2Config.route as any).rules as Record<string, unknown>[]
     expect(hy2Rules.some(r => r.protocol === 'quic' && r.action === 'reject')).toBe(true)
+    expect(hy2Rules.some(r => r.port === 53 && r.action === 'hijack-dns')).toBe(false)
+    expect(hy2Rules.some(r => r.protocol === 'dns' && r.action === 'hijack-dns')).toBe(true)
     expect(migrateLegacyConfig(legacyHy2Config)).toBe(false)
 
     const exePath = path.resolve(process.cwd(), 'sing-box/sing-box.exe')
@@ -589,6 +598,38 @@ describe('VLESS Parser & Config Generator Engine', () => {
       Array.isArray(r.domain_suffix) && r.domain_suffix.includes('aviabasa.local') && r.server === 'dns-corp-primary'
     )).toBe(true)
     expect(migrateLegacyConfig(legacyOfficeConfig)).toBe(false)
+  })
+
+  it('should upgrade standalone blind port:53 hijack-dns to sniff + protocol:dns and add firefox uTLS to VLESS+WS+TLS', () => {
+    const legacyWsTls: Record<string, unknown> = {
+      outbounds: [
+        {
+          type: 'vless',
+          tag: 'proxy-out',
+          server: '89.124.94.246',
+          server_port: 2096,
+          transport: { type: 'ws', path: '/office-ws' },
+          tls: { enabled: true, server_name: '89.124.94.246' }
+        }
+      ],
+      route: {
+        rules: [
+          { port: 53, action: 'hijack-dns' },
+          { domain_suffix: ['ru'], outbound: 'direct' }
+        ]
+      }
+    }
+
+    expect(migrateLegacyConfig(legacyWsTls)).toBe(true)
+    const proxyOut = (legacyWsTls.outbounds as any[])[0]
+    expect(proxyOut.connect_timeout).toBe('8s')
+    expect(proxyOut.tls.utls).toEqual({ enabled: true, fingerprint: 'firefox' })
+
+    const rules = (legacyWsTls.route as any).rules as Record<string, unknown>[]
+    expect(rules.some(r => r.port === 53 && r.action === 'hijack-dns')).toBe(false)
+    expect(rules.some(r => r.action === 'sniff')).toBe(true)
+    expect(rules.some(r => r.protocol === 'dns' && r.action === 'hijack-dns')).toBe(true)
+    expect(migrateLegacyConfig(legacyWsTls)).toBe(false)
   })
 
   it('should align outdated or corrupted Reality public_key for 89.124.94.246', () => {

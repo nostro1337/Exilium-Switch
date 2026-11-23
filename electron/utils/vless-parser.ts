@@ -228,7 +228,7 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
       tcp_fast_open: false,
       tcp_keep_alive: "30s",
       tcp_keep_alive_interval: "10s",
-      connect_timeout: "5s"
+      connect_timeout: "8s"
     }
 
     if (flow) {
@@ -252,7 +252,8 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
     } else if (security === 'tls') {
       proxyOutbound.tls = {
         enabled: true,
-        server_name: sni
+        server_name: sni,
+        utls: { enabled: true, fingerprint: fp }
       }
     }
   }
@@ -289,10 +290,11 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
     { domain_suffix: STREAMING_AND_AI_DOMAINS, server: "dns-remote" }
   )
 
+  // Rely on protocol sniffing + protocol:"dns" hijack (avoid blind port:53 hijack, which forces
+  // non-DNS binary keepalives/probes on port 53 into DNS unpacker and spams unpack/bad-question errors)
   const routeRules: Record<string, unknown>[] = [
     { action: "sniff" },
-    { protocol: "dns", action: "hijack-dns" },
-    { port: 53, action: "hijack-dns" }
+    { protocol: "dns", action: "hijack-dns" }
   ]
 
   // Block inner browser QUIC/HTTP3 across ALL protocols (both TCP VLESS and UDP Hysteria 2)
@@ -593,15 +595,15 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
           outbound.tcp_keep_alive_interval = '10s'
           changed = true
         }
-        if (outbound.connect_timeout !== '5s') {
-          outbound.connect_timeout = '5s'
+        if (outbound.connect_timeout !== '8s') {
+          outbound.connect_timeout = '8s'
           changed = true
         }
 
-        // Migrate uTLS fingerprint on ALL VLESS+Reality outbounds:
-        // sing-box 1.14 chrome ClientHello is dropped by RU TSPU on foreign VPS TCP:443 -> switch to firefox
+        // Migrate uTLS fingerprint on ALL VLESS TLS/Reality outbounds:
+        // sing-box 1.14 chrome ClientHello or plain Go crypto/tls is throttled/dropped by RU TSPU -> use firefox uTLS
         const anyTls = outbound.tls as Record<string, unknown> | undefined
-        if (anyTls && typeof anyTls === 'object' && anyTls.reality && typeof anyTls.reality === 'object') {
+        if (anyTls && typeof anyTls === 'object' && (anyTls.enabled === true || (anyTls.reality && typeof anyTls.reality === 'object'))) {
           if (!anyTls.utls || typeof anyTls.utls !== 'object') {
             anyTls.utls = { enabled: true, fingerprint: DEFAULT_UTLS_FINGERPRINT }
             changed = true
@@ -736,6 +738,25 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
     }
     if (Array.isArray(route.rules)) {
       const rules = route.rules as Record<string, unknown>[]
+
+      // Strip legacy blind port:53 hijack-dns rule (keeps sniff + protocol:"dns" hijack-dns)
+      // to stop non-DNS binary packets on port 53 from spamming DNS unpack errors every ~22s
+      const blindPort53Idx = rules.findIndex(r =>
+        r && r.action === 'hijack-dns' && !r.protocol && (r.port === 53 || (Array.isArray(r.port) && r.port.length === 1 && r.port[0] === 53))
+      )
+      if (blindPort53Idx !== -1) {
+        rules.splice(blindPort53Idx, 1)
+        const hasSniff = rules.some(r => r && r.action === 'sniff')
+        if (!hasSniff) {
+          rules.unshift({ action: 'sniff' })
+        }
+        const hasProtoDns = rules.some(r => r && r.protocol === 'dns' && r.action === 'hijack-dns')
+        if (!hasProtoDns) {
+          const sniffIdx = rules.findIndex(r => r && r.action === 'sniff')
+          rules.splice(sniffIdx !== -1 ? sniffIdx + 1 : 0, 0, { protocol: 'dns', action: 'hijack-dns' })
+        }
+        changed = true
+      }
 
       // Reject inner QUIC/HTTP3 across all proxy types to prevent QUIC-in-QUIC / UDP-over-TCP failures
       const hasQuicReject = rules.some(r => r && r.protocol === 'quic' && r.action === 'reject')

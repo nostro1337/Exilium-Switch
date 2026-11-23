@@ -49,6 +49,11 @@ describe('LogService Ring Buffer & Parser', () => {
 
     const successLog = logService.parseSingBoxLine('sing-box started and ready on tun0')
     expect(successLog.type).toBe('success')
+
+    const ansiLog = logService.parseSingBoxLine('\x1b[31mERROR\x1b[0m [12345 10ms] connection: dial timeout')
+    expect(ansiLog.type).toBe('error')
+    expect(ansiLog.text).not.toContain('\x1b[')
+    expect(ansiLog.text).toContain('ERROR [12345 10ms] connection: dial timeout')
   })
 
   it('should maintain max buffer capacity without unbounded memory growth', () => {

@@ -42,7 +42,7 @@ export class LogService {
       this.sessionFilePath = path.join(logsDir, `exilium-session-${timestamp}.log`)
 
       const isDev = isDevBuild()
-      const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.6.2'
+      const version = (app && typeof app.getVersion === 'function') ? app.getVersion() : '1.6.3'
       const sessionStart = new Date().toISOString()
       const modeBadge = isDev ? ' [DEV BUILD]' : ''
       const header = `=== EXILIUM SWITCH v${version}${modeBadge} SESSION STARTED [${sessionStart}] (by Nostro) ===\n`
@@ -171,7 +171,8 @@ export class LogService {
   }
 
   public parseSingBoxLine(rawLine: string): LogEntry {
-    const line = rawLine.trim()
+    // Strip ANSI escape sequences emitted by sing-box console logger
+    const line = rawLine.replace(/\x1b\[[0-9;]*m/g, '').trim()
     const lower = line.toLowerCase()
     let type: LogType = 'info'
     let category: LogCategory = 'traffic'

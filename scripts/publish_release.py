@@ -12,7 +12,7 @@ sys.stderr.reconfigure(encoding='utf-8')
 pkg_path = os.path.join(os.path.dirname(__file__), "..", "package.json")
 with open(pkg_path, "r", encoding="utf-8") as f:
     pkg_data = json.load(f)
-version = pkg_data.get("version", "1.6.2")
+version = pkg_data.get("version", "1.6.3")
 
 print(f"=== Подготовка релиза Exilium Switch v{version} ===")
 
@@ -52,20 +52,24 @@ if res_pub.returncode != 0:
 
 # 5. Обновление метаданных релиза (Title и Changelog) через GitHub API
 print("\n[3/3] Обновление описания и чейнджлога релиза на GitHub...")
-release_body = f"""# 🛠️ Exilium Switch v{version} — исправление потокового видео (HTTP/3 → HTTP/2) и удалённый DNS в режиме Офис
+release_body = f"""# 🛠️ Exilium Switch v{version} — чистые логи без спама DNS, uTLS Firefox для режима «Офис» и повышенная стабильность TCP
 
 ## 🔥 Что исправлено в v{version}:
 
-### 1. 🎬 Устранение зависаний потокового видео и `ERR_QUIC_PROTOCOL_ERROR` на Hysteria 2
-- **Блокировка внутреннего QUIC/HTTP3 для всех профилей (включая Hysteria 2):** Исключён конфликт QUIC-внутри-QUIC, из-за которого видео-CDN возвращали `net::ERR_QUIC_PROTOCOL_ERROR` либо проседали в 5 раз по скорости.
-- Браузеры автоматически работают через стабильный `HTTP/2` поверх туннеля, при этом сам внешний UDP-транспорт Hysteria 2, голос Discord/Telegram и игровой UDP работают без ограничений.
+### 1. 🧹 Устранение непрерывного спама ошибок DNS в логах (каждые 22 сек)
+- **Удалено избыточное слепое правило `port: 53 -> hijack-dns`:** Ядро `sing-box` уже перехватывает 100% валидных DNS-запросов через `sniff` + `protocol: "dns" -> hijack-dns`. Избыточное правило `port: 53` отправляло в DNS-парсер не-DNS пакеты (keepalive/пробы сторонних приложений), вызывая постоянные ошибки `router: process DNS packet: unpack request: bad header bits` и `dns: bad question size: 0`.
+- Автоматическая миграция (`migrateLegacyConfig`) безопасно очищает все существующие профили при запуске.
 
-### 2. 🌐 Исключение DNS-утечек и неверных CDN в режиме «Офис»
-- **Обновлён fallback DNS (`dns.final: "dns-remote"`):** В режиме «Офис» корпоративный DNS (`aviabasa.local`) и российские домены (`RUSSIAN_AND_CIS_DOMAINS`) по-прежнему идут напрямую, а все зарубежные сайты и видео-CDN теперь резолвятся через европейский узел (`dns-remote`).
+### 2. 🛡️ Маскировка `uTLS (firefox)` для рабочего профиля (VLESS + WS + TLS)
+- Для `VLESS + WS + TLS` (порт `2096`) включён отпечаток `uTLS: firefox` вместо голого `Go crypto/tls`, что снижает число обрывов рукопожатия на ТСПУ.
+- Таймаут установления TCP-соединения увеличен с `5s` до `8s` для устойчивости к кратковременным скачкам пинга провайдера.
 
-### 3. 🧪 Quality Gate
-- **100%** автоматизированных тестов Vitest пройдены успешно.
-- Покрытие кода: **>86% Lines**, **>90% Funcs**, **0 ошибок** TypeScript и Vite.
+### 3. 📋 Чистое логирование без ANSI-мусора
+- `LogService.parseSingBoxLine` теперь очищает ANSI escape-коды из вывода `sing-box` перед записью в UI и файлы сессий.
+
+### 4. 🧪 Quality Gate
+- **48/48** файлов тестов (**213/213** тестов Vitest) пройдены на 100%.
+- Покрытие кода: **87.00% Lines**, **90.14% Funcs**, **0 ошибок** TypeScript и Vite.
 
 ---
 **Разработчик:** Nostro | **Репозиторий:** [Exilium-Switch](https://github.com/nostro1337/Exilium-Switch)
