@@ -60,8 +60,11 @@ describe('VLESS Parser & Config Generator Engine', () => {
     const routeRules = route.rules as Record<string, unknown>[]
     expect(routeRules.some(r => r.action === 'sniff')).toBe(true)
     expect(routeRules.some(r => r.protocol === 'dns' && r.action === 'hijack-dns')).toBe(true)
+    expect(routeRules.some(r => Array.isArray(r.ip_cidr) && (r.ip_cidr as string[]).includes('172.19.0.2/32') && r.action === 'reject')).toBe(true)
     expect(routeRules.some(r => r.port === 53 && r.action === 'hijack-dns')).toBe(false)
     expect(routeRules.some(r => r.protocol === 'quic' && r.action === 'reject')).toBe(true)
+    const inbounds = config.inbounds as Record<string, unknown>[]
+    expect(inbounds[0].dns_address).toEqual(['172.19.0.2'])
     const tgIdx = routeRules.findIndex(r => Array.isArray(r.ip_cidr) && (r.ip_cidr as string[]).includes('149.154.160.0/20') && r.outbound === 'proxy-out')
     const ruIdx = routeRules.findIndex(r => Array.isArray(r.domain_suffix) && (r.domain_suffix as string[]).includes('ru') && r.outbound === 'direct')
     expect(tgIdx).toBeGreaterThan(-1)
@@ -88,8 +91,11 @@ describe('VLESS Parser & Config Generator Engine', () => {
     const routeRules = route.rules as Record<string, unknown>[]
     expect(routeRules.some(r => r.action === 'sniff')).toBe(true)
     expect(routeRules.some(r => r.protocol === 'dns' && r.action === 'hijack-dns')).toBe(true)
+    expect(routeRules.some(r => Array.isArray(r.ip_cidr) && (r.ip_cidr as string[]).includes('172.19.0.2/32') && r.action === 'reject')).toBe(true)
     expect(routeRules.some(r => r.port === 53 && r.action === 'hijack-dns')).toBe(false)
     expect(routeRules.some(r => r.protocol === 'quic' && r.action === 'reject')).toBe(true)
+    const inbounds = config.inbounds as Record<string, unknown>[]
+    expect(inbounds[0].dns_address).toEqual(['172.19.0.2'])
 
     const exePath = path.resolve(process.cwd(), 'sing-box/sing-box.exe')
     if (fs.existsSync(exePath)) {
@@ -557,10 +563,13 @@ describe('VLESS Parser & Config Generator Engine', () => {
     }
 
     expect(migrateLegacyConfig(legacyHy2Config)).toBe(true)
+    const hy2Inbounds = (legacyHy2Config.inbounds as any[])
+    expect(hy2Inbounds[0].dns_address).toEqual(['172.19.0.2'])
     const hy2Rules = (legacyHy2Config.route as any).rules as Record<string, unknown>[]
     expect(hy2Rules.some(r => r.protocol === 'quic' && r.action === 'reject')).toBe(true)
     expect(hy2Rules.some(r => r.port === 53 && r.action === 'hijack-dns')).toBe(false)
     expect(hy2Rules.some(r => r.protocol === 'dns' && r.action === 'hijack-dns')).toBe(true)
+    expect(hy2Rules.some(r => Array.isArray(r.ip_cidr) && (r.ip_cidr as string[]).includes('172.19.0.2/32') && r.action === 'reject')).toBe(true)
     expect(migrateLegacyConfig(legacyHy2Config)).toBe(false)
 
     const exePath = path.resolve(process.cwd(), 'sing-box/sing-box.exe')

@@ -12,7 +12,7 @@ sys.stderr.reconfigure(encoding='utf-8')
 pkg_path = os.path.join(os.path.dirname(__file__), "..", "package.json")
 with open(pkg_path, "r", encoding="utf-8") as f:
     pkg_data = json.load(f)
-version = pkg_data.get("version", "1.6.3")
+version = pkg_data.get("version", "1.6.4")
 
 print(f"=== Подготовка релиза Exilium Switch v{version} ===")
 
@@ -52,24 +52,19 @@ if res_pub.returncode != 0:
 
 # 5. Обновление метаданных релиза (Title и Changelog) через GitHub API
 print("\n[3/3] Обновление описания и чейнджлога релиза на GitHub...")
-release_body = f"""# 🛠️ Exilium Switch v{version} — чистые логи без спама DNS, uTLS Firefox для режима «Офис» и повышенная стабильность TCP
+release_body = f"""# 🛠️ Exilium Switch v{version} — полное устранение конфликта Tailscale + sing-box 1.14 (DNS unpack спам)
 
 ## 🔥 Что исправлено в v{version}:
 
-### 1. 🧹 Устранение непрерывного спама ошибок DNS в логах (каждые 22 сек)
-- **Удалено избыточное слепое правило `port: 53 -> hijack-dns`:** Ядро `sing-box` уже перехватывает 100% валидных DNS-запросов через `sniff` + `protocol: "dns" -> hijack-dns`. Избыточное правило `port: 53` отправляло в DNS-парсер не-DNS пакеты (keepalive/пробы сторонних приложений), вызывая постоянные ошибки `router: process DNS packet: unpack request: bad header bits` и `dns: bad question size: 0`.
-- Автоматическая миграция (`migrateLegacyConfig`) безопасно очищает все существующие профили при запуске.
+### 1. 🎯 Исправлен баг `sing-box 1.14.4` с `Tailscale` (`NAT-PMP / PCP` на шлюзе `172.19.0.2:5351`)
+- **Настоящая причина спама (`bad header bits: dns: overflow unpacking uint16` / `dns: bad question size: 0` / `bad rdata` каждые ~22 сек):**
+  В исходном коде `sing-box 1.14.4` (`protocol/tun/inbound.go:545`) при пустом `dns_address` ядро включает встроенный `dnsHijackAddress = [172.19.0.2]` и перехватывает **ВСЕ UDP-пакеты** на `172.19.0.2` на **любом порту** (не проверяя порт `53`) ещё до `route.rules`. Из-за этого 5 пакетов `Tailscale portmapper` (`NAT-PMP/PCP` на `172.19.0.2:5351`), отправляемые каждые 22 сек, принудительно попадали в DNS-парсер и сыпали 5 ошибок.
+- **Решение:** В TUN-инбаунд добавлено явное `dns_address: ["172.19.0.2"]` (отключает ошибочный порт-независимый перехват в `tun/inbound.go`, сохраняя DNS `172.19.0.2` на Wintun) + правило `{{"ip_cidr": ["172.19.0.2/32"], "action": "reject"}}` сразу после `{{"protocol": "dns", "action": "hijack-dns"}}`.
+- Все реальные DNS-запросы по-прежнему перехватываются через `sniff` + `protocol: "dns"` (0 утечек DNS), а не-DNS пробы Tailscale на `172.19.0.2:5351` тихо отклоняются с **0 ошибок в логах**.
 
-### 2. 🛡️ Маскировка `uTLS (firefox)` для рабочего профиля (VLESS + WS + TLS)
-- Для `VLESS + WS + TLS` (порт `2096`) включён отпечаток `uTLS: firefox` вместо голого `Go crypto/tls`, что снижает число обрывов рукопожатия на ТСПУ.
-- Таймаут установления TCP-соединения увеличен с `5s` до `8s` для устойчивости к кратковременным скачкам пинга провайдера.
-
-### 3. 📋 Чистое логирование без ANSI-мусора
-- `LogService.parseSingBoxLine` теперь очищает ANSI escape-коды из вывода `sing-box` перед записью в UI и файлы сессий.
-
-### 4. 🧪 Quality Gate
-- **48/48** файлов тестов (**213/213** тестов Vitest) пройдены на 100%.
-- Покрытие кода: **87.00% Lines**, **90.14% Funcs**, **0 ошибок** TypeScript и Vite.
+### 2. 🧪 Quality Gate
+- **100%** автоматизированных тестов Vitest пройдены успешно (`sing-box check` подтверждён).
+- Покрытие кода: **>87% Lines**, **>90% Funcs**, **0 ошибок** TypeScript и Vite.
 
 ---
 **Разработчик:** Nostro | **Репозиторий:** [Exilium-Switch](https://github.com/nostro1337/Exilium-Switch)

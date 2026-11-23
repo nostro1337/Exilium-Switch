@@ -290,11 +290,13 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
     { domain_suffix: STREAMING_AND_AI_DOMAINS, server: "dns-remote" }
   )
 
-  // Rely on protocol sniffing + protocol:"dns" hijack (avoid blind port:53 hijack, which forces
-  // non-DNS binary keepalives/probes on port 53 into DNS unpacker and spams unpack/bad-question errors)
+  // Rely on protocol sniffing + protocol:"dns" hijack (avoid blind port:53 hijack),
+  // and reject non-DNS traffic aimed at virtual TUN gateway 172.19.0.2 (e.g. Tailscale NAT-PMP/PCP on UDP:5351)
+  // which otherwise collides with sing-box 1.14's port-agnostic TUN dnsHijackAddress check.
   const routeRules: Record<string, unknown>[] = [
     { action: "sniff" },
-    { protocol: "dns", action: "hijack-dns" }
+    { protocol: "dns", action: "hijack-dns" },
+    { ip_cidr: ["172.19.0.2/32"], action: "reject" }
   ]
 
   // Block inner browser QUIC/HTTP3 across ALL protocols (both TCP VLESS and UDP Hysteria 2)
@@ -358,6 +360,9 @@ export function convertVlessToSingBoxConfig(vlessUrl: string, mode: AppMode = 'h
         tag: "tun-in",
         interface_name: "singbox-tun0",
         address: ["172.19.0.1/30"],
+        // Explicit dns_address keeps Wintun DNS at 172.19.0.2 while bypassing sing-box 1.14's
+        // port-agnostic dnsHijackAddress shortcut (which hijacked Tailscale UDP:5351 NAT-PMP as DNS).
+        dns_address: ["172.19.0.2"],
         mtu: 1400,
         auto_route: true,
         strict_route: true,
@@ -563,6 +568,14 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
           inbound.stack = 'system'
           changed = true
         }
+
+        // Explicit dns_address disables sing-box 1.14's port-agnostic TUN dnsHijackAddress shortcut
+        // that misclassifies Tailscale NAT-PMP/PCP (172.19.0.2:5351) as DNS packets every ~22s.
+        const addrs = inbound.address as string[]
+        if (addrs.includes('172.19.0.1/30') && !arraysEqual(inbound.dns_address as unknown[], ['172.19.0.2'])) {
+          inbound.dns_address = ['172.19.0.2']
+          changed = true
+        }
       }
     }
   }
@@ -756,6 +769,26 @@ export function migrateLegacyConfig(config: Record<string, unknown>): boolean {
           rules.splice(sniffIdx !== -1 ? sniffIdx + 1 : 0, 0, { protocol: 'dns', action: 'hijack-dns' })
         }
         changed = true
+      }
+
+      // Ensure non-DNS packets to virtual TUN gateway 172.19.0.2 (e.g. Tailscale NAT-PMP/PCP on UDP:5351)
+      // are silently rejected right after hijack-dns whenever tun uses dns_address 172.19.0.2
+      const usesVirtualTunDns = Array.isArray(config.inbounds) && (config.inbounds as Record<string, unknown>[]).some(
+        inb => inb && inb.type === 'tun' && Array.isArray(inb.dns_address) && (inb.dns_address as string[]).includes('172.19.0.2')
+      )
+      if (usesVirtualTunDns) {
+        const hasGatewayReject = rules.some(r =>
+          r && r.action === 'reject' && Array.isArray(r.ip_cidr) && (r.ip_cidr as string[]).includes('172.19.0.2/32')
+        )
+        if (!hasGatewayReject) {
+          const hijackIdx = rules.findIndex(r => r && r.action === 'hijack-dns')
+          let insertIdx = hijackIdx !== -1 ? hijackIdx + 1 : 0
+          while (insertIdx < rules.length && rules[insertIdx]?.action === 'hijack-dns') {
+            insertIdx++
+          }
+          rules.splice(insertIdx, 0, { ip_cidr: ['172.19.0.2/32'], action: 'reject' })
+          changed = true
+        }
       }
 
       // Reject inner QUIC/HTTP3 across all proxy types to prevent QUIC-in-QUIC / UDP-over-TCP failures
