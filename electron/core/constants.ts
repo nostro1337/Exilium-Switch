@@ -1,5 +1,6 @@
 export const APP_AUMID = 'Exilium Switch'
 export const AMSTERDAM_TIMEZONE = 'W. Europe Standard Time'
+export const US_EAST_TIMEZONE = 'Eastern Standard Time'
 export const FALLBACK_TIMEZONE = 'Russian Standard Time'
 export const STATUS_BROADCAST_INTERVAL_MS = 3500
 export const LATENCY_SAMPLE_INTERVAL_MS = 5000

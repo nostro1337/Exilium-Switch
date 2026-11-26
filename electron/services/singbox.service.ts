@@ -12,6 +12,7 @@ import { ZapretService } from './zapret.service'
 import { NotificationService } from './notification.service'
 import { NetworkService } from './network.service'
 import { StateMachine } from '../core/state-machine'
+import { US_EAST_TIMEZONE } from '../core/constants'
 import type { VpnStatus } from '../../shared/types'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -245,6 +246,18 @@ export class SingBoxService {
     return true
   }
 
+  public resolveTargetFakeZone(profileName: string, defaultFakeZone: string): string {
+    const normalized = (profileName || '').toLowerCase()
+    if (
+      normalized.includes('🇺🇸') ||
+      normalized.includes('сша') ||
+      /\b(usa|us)\b/i.test(normalized)
+    ) {
+      return US_EAST_TIMEZONE
+    }
+    return defaultFakeZone
+  }
+
   public async toggle(enable?: boolean): Promise<{ success: boolean; isRunning: boolean; error?: string }> {
     const stateMachine = StateMachine.getInstance()
     const logService = LogService.getInstance()
@@ -266,7 +279,6 @@ export class SingBoxService {
 
       if (shouldRun) {
         stateMachine.setState('connecting')
-        logService.addLog(`━━━ АКТИВАЦИЯ ТУННЕЛЯ [${isOffice ? 'РЕЖИМ ОФИС' : 'RESIDENT SHIELD (Amsterdam)'}] ━━━`, 'info')
 
         const activeProfile = profileService.getActiveProfile()
         if (!activeProfile) {
@@ -276,8 +288,14 @@ export class SingBoxService {
           return { success: false, isRunning: false, error: 'Сначала добавьте .json конфиг' }
         }
 
+        const targetFakeZone = this.resolveTargetFakeZone(activeProfile.name, settings.fakeZone)
+        const isUsProfile = targetFakeZone === US_EAST_TIMEZONE
+        const regionLabel = isUsProfile ? 'USA / Eastern Time' : 'Amsterdam / NL'
+
+        logService.addLog(`━━━ АКТИВАЦИЯ ТУННЕЛЯ [${isOffice ? 'РЕЖИМ ОФИС' : `RESIDENT SHIELD (${regionLabel})`}] ━━━`, 'info')
+
         if (!isOffice) {
-          await residentService.enableResidentMode(settings.fakeZone)
+          await residentService.enableResidentMode(targetFakeZone)
         } else {
           logService.addLog(`Запуск ядра sing-box в режиме «Офис» [${activeProfile.name}] (сетевые адаптеры ОС не изменяются)...`, 'info')
         }
@@ -295,10 +313,10 @@ export class SingBoxService {
               `Офисный сплит-туннель включен [${activeProfile.name}]. Домен и локальная сеть защищены.`
             )
           } else {
-            logService.addLog('✓ RESIDENT SHIELD АКТИВЕН (Amsterdam / NL Resident Masking Active)', 'success')
+            logService.addLog(`✓ RESIDENT SHIELD АКТИВЕН (${regionLabel} Resident Masking Active)`, 'success')
             notifService.showNotification(
               'Exilium Switch — Защита активна',
-              `Resident Shield включен [${activeProfile.name}]. Часовой пояс, DNS и геолокация защищены.`
+              `Resident Shield включен [${activeProfile.name}]. Часовой пояс (${targetFakeZone}), DNS и геолокация защищены.`
             )
           }
           return { success: true, isRunning: true }

@@ -12,7 +12,7 @@ sys.stderr.reconfigure(encoding='utf-8')
 pkg_path = os.path.join(os.path.dirname(__file__), "..", "package.json")
 with open(pkg_path, "r", encoding="utf-8") as f:
     pkg_data = json.load(f)
-version = pkg_data.get("version", "1.6.4")
+version = pkg_data.get("version", "1.6.5")
 
 print(f"=== Подготовка релиза Exilium Switch v{version} ===")
 
@@ -52,18 +52,17 @@ if res_pub.returncode != 0:
 
 # 5. Обновление метаданных релиза (Title и Changelog) через GitHub API
 print("\n[3/3] Обновление описания и чейнджлога релиза на GitHub...")
-release_body = f"""# 🛠️ Exilium Switch v{version} — полное устранение конфликта Tailscale + sing-box 1.14 (DNS unpack спам)
+release_body = f"""# 🇺🇸 Exilium Switch v{version} — авто-подмена часового пояса США (Eastern Time) для US-профилей
 
-## 🔥 Что исправлено в v{version}:
+## 🔥 Что нового в v{version}:
 
-### 1. 🎯 Исправлен баг `sing-box 1.14.4` с `Tailscale` (`NAT-PMP / PCP` на шлюзе `172.19.0.2:5351`)
-- **Настоящая причина спама (`bad header bits: dns: overflow unpacking uint16` / `dns: bad question size: 0` / `bad rdata` каждые ~22 сек):**
-  В исходном коде `sing-box 1.14.4` (`protocol/tun/inbound.go:545`) при пустом `dns_address` ядро включает встроенный `dnsHijackAddress = [172.19.0.2]` и перехватывает **ВСЕ UDP-пакеты** на `172.19.0.2` на **любом порту** (не проверяя порт `53`) ещё до `route.rules`. Из-за этого 5 пакетов `Tailscale portmapper` (`NAT-PMP/PCP` на `172.19.0.2:5351`), отправляемые каждые 22 сек, принудительно попадали в DNS-парсер и сыпали 5 ошибок.
-- **Решение:** В TUN-инбаунд добавлено явное `dns_address: ["172.19.0.2"]` (отключает ошибочный порт-независимый перехват в `tun/inbound.go`, сохраняя DNS `172.19.0.2` на Wintun) + правило `{{"ip_cidr": ["172.19.0.2/32"], "action": "reject"}}` сразу после `{{"protocol": "dns", "action": "hijack-dns"}}`.
-- Все реальные DNS-запросы по-прежнему перехватываются через `sniff` + `protocol: "dns"` (0 утечек DNS), а не-DNS пробы Tailscale на `172.19.0.2:5351` тихо отклоняются с **0 ошибок в логах**.
+### 1. 🇺🇸 Автоматическая геолокационная синхронизация Resident Shield для профилей США
+- При активации профиля с меткой `🇺🇸` / `США` / `USA` / `US` **Resident Shield** автоматически переводит системный часовой пояс Windows в **`Eastern Standard Time` (`America/New_York`, UTC-5)** вместо европейского `W. Europe Standard Time`.
+- Для европейских (NL) профилей по-прежнему используется `W. Europe Standard Time` (Амстердам).
+- При отключении или аварийном восстановлении (`Failsafe`) реальный часовой пояс Windows всегда возвращается автоматически.
 
 ### 2. 🧪 Quality Gate
-- **100%** автоматизированных тестов Vitest пройдены успешно (`sing-box check` подтверждён).
+- **100%** автоматизированных тестов Vitest пройдены успешно.
 - Покрытие кода: **>87% Lines**, **>90% Funcs**, **0 ошибок** TypeScript и Vite.
 
 ---

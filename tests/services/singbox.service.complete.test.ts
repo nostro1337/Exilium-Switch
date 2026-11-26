@@ -109,6 +109,32 @@ describe('SingBoxService Comprehensive Engine Testing', () => {
     expect(startSpy).toHaveBeenCalled()
   })
 
+  it('should automatically switch Resident Shield timezone to Eastern Standard Time for US profiles', async () => {
+    vi.spyOn(singboxService, 'isRunning').mockResolvedValue(false)
+    vi.spyOn(profileService, 'getActiveProfile').mockReturnValue({
+      id: 'us-isp-home',
+      name: '🇺🇸 ПК • США (Домашний ISP)',
+      path: 'C:\\us-test.json',
+      mode: 'home',
+      createdAt: Date.now()
+    })
+    vi.spyOn(settingsService, 'loadSettings').mockReturnValue({
+      appMode: 'home',
+      fakeZone: 'W. Europe Standard Time',
+      realZone: 'Tomsk Standard Time'
+    } as any)
+
+    const enableResidentSpy = vi.spyOn(residentService, 'enableResidentMode').mockResolvedValue()
+    vi.spyOn(zapretService, 'pauseZapretIfRunning').mockResolvedValue(true)
+    vi.spyOn(singboxService, 'start').mockResolvedValue(true)
+
+    const res = await singboxService.toggle(true)
+    expect(res.success).toBe(true)
+    expect(enableResidentSpy).toHaveBeenCalledWith('Eastern Standard Time')
+    expect(singboxService.resolveTargetFakeZone('USA-Fast', 'W. Europe Standard Time')).toBe('Eastern Standard Time')
+    expect(singboxService.resolveTargetFakeZone('💻 ПК • Основной', 'W. Europe Standard Time')).toBe('W. Europe Standard Time')
+  })
+
   it('should rollback resident mode and resume zapret if start() fails', async () => {
     vi.spyOn(singboxService, 'isRunning').mockResolvedValue(false)
     vi.spyOn(profileService, 'getActiveProfile').mockReturnValue({
